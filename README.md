@@ -7,7 +7,6 @@
 - `bazi-agent-frontend`：输入页 + 结果页 + 历史记录 + 可视化
 - `bazi-mcp-dev`：主排盘数据源
 - `bazi-master`：补充数据源（仅在需要时补齐）
-- `lifeline-k--main` / `lifekline-main`：UI 和产品结构参考
 
 ---
 
@@ -93,34 +92,10 @@ lsof -tiTCP:8787,5173,5174,5175 -sTCP:LISTEN | xargs kill -9
 
 ---
 
-## 4. 与参考 repo 的关系（当前策略）
-
-- 参考其 UI/交互结构（页面层级、信息密度、模块划分）。
-- 不直接照搬其“人生 K 线评分逻辑”。
-  - `lifeline-k--main`、`lifekline-main` 的 K 线核心多为 LLM 按提示词生成，不是稳定可复现公式。
-- 本项目优先走结构化排盘 + 自有规则/策略，保证可控和可追溯。
-
----
-
-## 5. 下一步建议（按优先级）
-
-1. 设计“可复现”的运势评分引擎  
-   - 以 `chart_rich` 字段做明确打分规则（而非纯 LLM 生成曲线）。
-2. 增加命盘校验数据闭环  
-   - 用用户填写的历史事件做规则权重校准。
-3. 结果页继续精修  
-   - 信息层级、图表可读性、移动端细节。
-4. 训练路线准备  
-   - 按会话 + 结构化盘 + 反馈形成后续微调/评估数据集。
-
----
-
 ## 6. 目录说明
 
 - `/Users/li/Desktop/Projects/Bazi/bazi-agent-backend`：主后端（建议主开发）
 - `/Users/li/Desktop/Projects/Bazi/bazi-agent-frontend`：主前端（建议主开发）
 - `/Users/li/Desktop/Projects/Bazi/bazi-master`：本地 Python 排盘能力
 - `/Users/li/Desktop/Projects/Bazi/bazi-mcp-dev`：MCP 排盘能力（当前主源）
-- `/Users/li/Desktop/Projects/Bazi/lifeline-k--main`：参考实现（K线+多语言）
-- `/Users/li/Desktop/Projects/Bazi/lifekline-main`：参考实现（手动四柱输入流）
 
