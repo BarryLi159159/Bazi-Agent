@@ -92,7 +92,70 @@ lsof -tiTCP:8787,5173,5174,5175 -sTCP:LISTEN | xargs kill -9
 
 ---
 
-## 6. 目录说明
+## 4. 生产部署：为何已有 Supabase 还要 Vercel / Railway / Render？
+
+**Supabase 提供的是**：托管数据库、Auth（登录）、可选 Storage 等**云服务**，不是你的 **Node 后端**和 **Vite 前端静态站**本身。
+
+**仍需要单独部署的是**：
+
+| 部分 | 说明 |
+|------|------|
+| 本仓库 `bazi-agent-frontend` | 浏览器里跑的 React 页面，需要构建成静态文件并托管（常见：**Vercel**）。 |
+| 本仓库 `bazi-agent-backend` | Express 进程，处理 `/api/*`、JWT 校验、排盘、模型调用，需要长期运行的 **Node 服务**（常见：**Railway**、**Render**、Fly.io 等）。 |
+
+因此：**Supabase ≠ 替代前端/后端部署**；除非你把全部逻辑改写成 Supabase Edge Functions（与本项目当前架构不同）。
+
+### 4.1 前端（Vercel）
+
+1. 在 Vercel 新建项目，**Root Directory** 选 `bazi-agent-frontend`（若从 monorepo 导入）。
+2. 环境变量（Production）至少：
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_API_BASE_URL`：填你线上 API 的完整 origin，例如 `https://api.你的域名.com`（不要尾斜杠）。
+3. 仓库内已带 [`bazi-agent-frontend/vercel.json`](bazi-agent-frontend/vercel.json)，构建命令与输出目录与 Vite 默认一致。
+
+### 4.2 后端（Railway 或 Render）
+
+1. 新建 Web Service，Root 指向 `bazi-agent-backend`。
+2. Build：`npm install && npm run build`；Start：`npm start`（产出 `dist/server.js`）。
+3. 环境变量与本地 `.env` 对齐：`DATABASE_URL`（可用 Supabase Postgres）、`SUPABASE_URL`、`APP_SECRETS_KEY`、`OPENAI_*`、八字相关路径等。  
+   **注意**：线上若仓库结构不同，需调整 `BAZI_MCP_DIST_PATH` / `BAZI_MASTER_SCRIPT_PATH`，或把 `bazi-mcp-dev` 一并构建进镜像。
+4. 健康检查路径：`GET /health`（返回 `{"ok":true,...}`）。
+
+### 4.3 域名与 root / api 子域
+
+典型做法：
+
+- **根域**（如 `app.example.com` 或 `www.example.com`）→ 在 DNS 指向 **Vercel**（前端）。
+- **子域** `api.example.com` → CNAME 到 **Railway/Render** 提供的后端域名，并在该平台绑定自定义域名与 HTTPS。
+
+这样浏览器里：`VITE_API_BASE_URL=https://api.example.com`，与页面不同源；需在后端已配置 **CORS**（本项目已对 `Access-Control-Allow-Origin: *`，生产可收紧为前端域名）。
+
+---
+
+## 5. 与参考 repo 的关系（当前策略）
+
+- 参考其 UI/交互结构（页面层级、信息密度、模块划分）。
+- 不直接照搬其“人生 K 线评分逻辑”。
+  - `lifeline-k--main`、`lifekline-main` 的 K 线核心多为 LLM 按提示词生成，不是稳定可复现公式。
+- 本项目优先走结构化排盘 + 自有规则/策略，保证可控和可追溯。
+
+---
+
+## 6. 下一步建议（按优先级）
+
+1. 设计“可复现”的运势评分引擎  
+   - 以 `chart_rich` 字段做明确打分规则（而非纯 LLM 生成曲线）。
+2. 增加命盘校验数据闭环  
+   - 用用户填写的历史事件做规则权重校准。
+3. 结果页继续精修  
+   - 信息层级、图表可读性、移动端细节。
+4. 训练路线准备  
+   - 按会话 + 结构化盘 + 反馈形成后续微调/评估数据集。
+
+---
+
+## 7. 目录说明
 
 - `/Users/li/Desktop/Projects/Bazi/bazi-agent-backend`：主后端（建议主开发）
 - `/Users/li/Desktop/Projects/Bazi/bazi-agent-frontend`：主前端（建议主开发）

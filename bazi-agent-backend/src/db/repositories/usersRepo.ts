@@ -16,7 +16,20 @@ function mapRow(row: Record<string, unknown>): DbUser {
   return row as unknown as DbUser;
 }
 
+/** 空串视为「未提供」，避免 COALESCE('', users.x) 把库里已有姓名/生日覆盖成空 */
+function nullIfBlank(value: string | undefined | null): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const t = String(value).trim();
+  return t.length > 0 ? t : null;
+}
+
 export async function upsertUser(input: UpsertUserInput): Promise<DbUser> {
+  const displayName = nullIfBlank(input.displayName);
+  const birthSolarDatetime = nullIfBlank(input.birthSolarDatetime);
+  const birthLunarDatetime = nullIfBlank(input.birthLunarDatetime);
+
   const result: QueryResult = await pool.query(
     `
     INSERT INTO users (
@@ -40,10 +53,10 @@ export async function upsertUser(input: UpsertUserInput): Promise<DbUser> {
     `,
     [
       input.externalId,
-      input.displayName ?? null,
+      displayName,
       input.gender ?? null,
-      input.birthSolarDatetime ?? null,
-      input.birthLunarDatetime ?? null,
+      birthSolarDatetime,
+      birthLunarDatetime,
       input.baziJson ?? null,
       input.profileJson ? JSON.stringify(input.profileJson) : null,
     ],

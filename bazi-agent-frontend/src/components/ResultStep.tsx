@@ -1,33 +1,31 @@
-import { useMemo, useState } from 'react';
 import type { NormalizedChartRich } from '../chartRich';
+import type { ChatResponse, TransitSnapshot } from '../types';
+import { AgentInsightSection } from './result/AgentInsightSection';
 import { FiveElementsSection } from './result/FiveElementsSection';
 import { FortuneSection } from './result/FortuneSection';
-import { FortuneTrendView } from './result/FortuneTrendView';
 import { GodsSection } from './result/GodsSection';
 import { PillarsSection } from './result/PillarsSection';
 import { RelationsSection } from './result/RelationsSection';
+import { TransitSection } from './result/TransitSection';
 
 export function ResultStep(props: {
   t: Record<string, string>;
   chart: NormalizedChartRich | null;
+  transit: TransitSnapshot | null;
+  latestChat: ChatResponse | null;
   onEdit: () => void;
+  onBack: () => void;
 }) {
-  const { t, chart, onEdit } = props;
-  const [viewMode, setViewMode] = useState<'table' | 'trend'>('table');
-
-  const trendData = useMemo(
-    () =>
-      chart?.fortune.decades.map((item) => ({
-        干支: item.ganZhi,
-        开始年龄: item.startAge ?? '-',
-        十二运: item.cycleState,
-      })) ?? [],
-    [chart],
-  );
+  const { t, chart, transit, latestChat, onEdit, onBack } = props;
 
   if (!chart) {
     return (
       <section className="result-page">
+        <header className="result-fallback-header">
+          <button type="button" className="ghost-btn" onClick={onBack}>
+            {t.backToHome}
+          </button>
+        </header>
         <section className="panel">
           <h3>{t.resultTitle}</h3>
           <p className="muted">{t.analysisFallback}</p>
@@ -49,6 +47,9 @@ export function ResultStep(props: {
           </div>
         </div>
         <div className="hero-actions">
+          <button className="ghost-btn" type="button" onClick={onBack}>
+            {t.backToHome}
+          </button>
           <button className="ghost-btn" type="button" onClick={onEdit}>
             {t.edit}
           </button>
@@ -71,32 +72,24 @@ export function ResultStep(props: {
         ))}
       </section>
 
-      <div className="result-view-toggle">
-        <button type="button" className={viewMode === 'table' ? 'active' : ''} onClick={() => setViewMode('table')}>
-          {t.tableView}
-        </button>
-        <button type="button" className={viewMode === 'trend' ? 'active' : ''} onClick={() => setViewMode('trend')}>
-          {t.trendView}
-        </button>
-      </div>
-
       <div className="result-top-grid">
         <PillarsSection title={t.panelPillars} pillars={chart.pillars} />
         <FiveElementsSection title={t.panelElements} data={chart.fiveElements} />
       </div>
 
-      {viewMode === 'table' ? (
-        <FortuneSection
-          title={t.panelFortune}
-          subtitle={t.panelFortuneSubtitle}
-          startAge={chart.fortune.startAge}
-          startDate={chart.fortune.startDate}
-          fortuneList={chart.fortune.list}
-          decades={chart.fortune.decades}
-        />
-      ) : (
-        <FortuneTrendView decadeFortunes={trendData} />
-      )}
+      <AgentInsightSection t={t} latestChat={latestChat} />
+
+      <TransitSection t={t} transit={transit} />
+
+      <FortuneSection
+        t={t}
+        title={t.panelFortune}
+        subtitle={t.panelFortuneSubtitle}
+        startAge={chart.fortune.startAge}
+        startDate={chart.fortune.startDate}
+        fortuneList={chart.fortune.list}
+        decades={chart.fortune.decades}
+      />
 
       <div className="result-bottom-grid">
         <GodsSection title={t.panelGods} gods={chart.gods} />

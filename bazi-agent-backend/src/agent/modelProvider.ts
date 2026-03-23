@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import type { ModelMessage, ModelProvider } from './types.js';
+import { structuredAnalysisSchema, type ModelMessage, type ModelProvider, type StructuredAnalysis } from './types.js';
 
 interface OpenAIChatResponse {
   choices?: Array<{
@@ -7,6 +7,20 @@ interface OpenAIChatResponse {
       content?: string;
     };
   }>;
+}
+
+function extractJsonObject(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    return trimmed;
+  }
+
+  const start = trimmed.indexOf('{');
+  const end = trimmed.lastIndexOf('}');
+  if (start < 0 || end <= start) {
+    throw new Error('Structured analysis did not contain a JSON object');
+  }
+  return trimmed.slice(start, end + 1);
 }
 
 export class OpenAIModelProvider implements ModelProvider {
@@ -18,7 +32,13 @@ export class OpenAIModelProvider implements ModelProvider {
     private readonly model: string,
   ) {}
 
-  async generateReply(messages: ModelMessage[]): Promise<string> {
+  private async requestContent(
+    messages: ModelMessage[],
+    options?: {
+      temperature?: number;
+      responseFormat?: { type: 'json_object' };
+    },
+  ): Promise<string> {
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -28,7 +48,8 @@ export class OpenAIModelProvider implements ModelProvider {
       body: JSON.stringify({
         model: this.model,
         messages,
-        temperature: 0.6,
+        temperature: options?.temperature ?? 0.6,
+        response_format: options?.responseFormat,
       }),
     });
 
@@ -44,6 +65,19 @@ export class OpenAIModelProvider implements ModelProvider {
     }
 
     return content;
+  }
+
+  async generateStructuredAnalysis(messages: ModelMessage[]): Promise<StructuredAnalysis> {
+    const content = await this.requestContent(messages, {
+      temperature: 0.2,
+      responseFormat: { type: 'json_object' },
+    });
+    const parsed = JSON.parse(extractJsonObject(content));
+    return structuredAnalysisSchema.parse(parsed);
+  }
+
+  async generateReply(messages: ModelMessage[]): Promise<string> {
+    return this.requestContent(messages, { temperature: 0.6 });
   }
 }
 
@@ -95,12 +129,101 @@ export class RuleBasedModelProvider implements ModelProvider {
     ].join('\n');
   }
 
+  private detectIntent(lastUser: string): StructuredAnalysis['intent'] {
+    if (/事业|工作|求职|面试|升职|职业/.test(lastUser)) {
+      return 'career';
+    }
+    if (/感情|恋爱|婚姻|伴侣|桃花/.test(lastUser)) {
+      return 'relationship';
+    }
+    if (/财运|收入|赚钱|投资|副业/.test(lastUser)) {
+      return 'wealth';
+    }
+    if (/健康|身体|睡眠|情绪|焦虑/.test(lastUser)) {
+      return 'health';
+    }
+    if (/学习|考试|留学|读书/.test(lastUser)) {
+      return 'study';
+    }
+    return 'general';
+  }
+
+  async generateStructuredAnalysis(messages: ModelMessage[]): Promise<StructuredAnalysis> {
+    const lastUser = [...messages].reverse().find((item) => item.role === 'user')?.content ?? '';
+    const system = messages.find((item) => item.role === 'system')?.content ?? '';
+    const memorySection = this.extractSection(system, '用户长期记忆：', '八字信息：');
+    const baziSection = this.extractSection(system, '八字信息：', '当前流转信息：');
+    const transitSection = this.extractSection(system, '当前流转信息：');
+    const hasBazi = Boolean(baziSection && !/暂无八字信息/.test(baziSection));
+    const transitIncluded = Boolean(transitSection && !/暂无当前流转信息/.test(transitSection));
+
+    return {
+      intent: this.detectIntent(lastUser),
+      questionSummary: lastUser.slice(0, 80) || '用户希望获得命理建议',
+      chartBasis: {
+        hasBazi,
+        transitIncluded,
+      },
+      reasoningSummary: [
+        '先识别本轮问题的主题和时间范围。',
+        hasBazi ? '结合已有八字信息提炼主要结构信号。' : '当前缺少完整八字，只能做保守判断。',
+        transitIncluded ? '把当前流转层级纳入节奏判断。' : '当前没有纳入流转细节。',
+      ],
+      analysis: {
+        coreThemes: [this.detectIntent(lastUser), hasBazi ? '命盘结构' : '补充信息', transitIncluded ? '当前节奏' : '基础判断'],
+        timeWindows: [
+          {
+            label: '近30天',
+            signal: 'medium',
+            note: '适合先收拢问题和目标，避免同时推进过多方向。',
+          },
+          {
+            label: '未来3个月',
+            signal: hasBazi ? 'high' : 'medium',
+            note: '更适合根据阶段反馈调整策略，逐步放大有效动作。',
+          },
+        ],
+        risks: memorySection ? ['不要被单一事件放大情绪波动。'] : ['目前资料有限，结论要保守使用。'],
+        advice: [
+          '先把这次咨询收敛成一个最核心的问题。',
+          '把目标拆成近30天和3个月两个节奏。',
+          transitIncluded ? '优先顺着当前节奏推进，不要同时频繁换方向。' : '补充更多出生与近况信息后，判断会更稳。',
+        ],
+      },
+      confidence: hasBazi ? 0.72 : 0.46,
+    };
+  }
+
   async generateReply(messages: ModelMessage[]): Promise<string> {
     const lastUser = [...messages].reverse().find((item) => item.role === 'user')?.content ?? '';
     const system = messages.find((item) => item.role === 'system')?.content ?? '';
 
     const memorySection = this.extractSection(system, '用户长期记忆：', '八字信息：');
     const baziSection = this.extractSection(system, '八字信息：').slice(0, 400);
+
+    const jsonText = this.extractSection(system, '结构化分析 JSON：');
+    if (jsonText) {
+      try {
+        const analysis = structuredAnalysisSchema.parse(JSON.parse(extractJsonObject(jsonText)));
+        return [
+          `这次我先围绕“${analysis.questionSummary}”来回答。`,
+          '',
+          `重点主题：${analysis.analysis.coreThemes.join('、')}。`,
+          analysis.reasoningSummary.map((item, index) => `${index + 1}. ${item}`).join('\n'),
+          '',
+          analysis.analysis.timeWindows.length > 0
+            ? `时间节奏：${analysis.analysis.timeWindows.map((item) => `${item.label}（${item.signal}）${item.note}`).join('；')}`
+            : '时间节奏：先以近期稳步推进为主。',
+          '',
+          `建议：${analysis.analysis.advice.join('；')}`,
+          analysis.analysis.risks.length > 0 ? `提醒：${analysis.analysis.risks.join('；')}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+      } catch (error) {
+        console.warn('[RuleBasedModelProvider] failed to parse structured JSON for reply', error);
+      }
+    }
 
     if (/30天|求职计划|行动计划/.test(lastUser)) {
       return this.buildJobPlanReply(lastUser, memorySection, baziSection);
@@ -123,9 +246,10 @@ export class RuleBasedModelProvider implements ModelProvider {
   }
 }
 
-export function createModelProvider(): ModelProvider {
-  if (config.OPENAI_API_KEY) {
-    return new OpenAIModelProvider(config.OPENAI_API_KEY, config.OPENAI_BASE_URL, config.OPENAI_MODEL);
+export function createModelProvider(apiKeyOverride?: string | null): ModelProvider {
+  const apiKey = apiKeyOverride?.trim() || config.OPENAI_API_KEY;
+  if (apiKey) {
+    return new OpenAIModelProvider(apiKey, config.OPENAI_BASE_URL, config.OPENAI_MODEL);
   }
   return new RuleBasedModelProvider();
 }

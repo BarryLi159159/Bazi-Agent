@@ -40,6 +40,11 @@ export async function touchSession(sessionId: string): Promise<void> {
   );
 }
 
+export async function deleteSessionById(sessionId: string): Promise<boolean> {
+  const result: QueryResult = await pool.query(`DELETE FROM chat_sessions WHERE id = $1;`, [sessionId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
 export interface SessionSummary {
   id: string;
   user_id: string;
@@ -51,7 +56,23 @@ export interface SessionSummary {
   last_message_preview?: string | null;
 }
 
-export async function listSessionsByUserId(userId: string, limit = 20): Promise<SessionSummary[]> {
+/** 列表查询 JOIN users，字段与 SessionSummary 一致并附带 user_* */
+export interface SessionListRow {
+  id: string;
+  user_id: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+  last_message: string | null;
+  user_display_name: string | null;
+  user_gender: unknown;
+  user_birth_solar_datetime: unknown;
+  user_bazi_json: unknown;
+}
+
+/** 按 external_id 列出会话，并与 users 行 JOIN */
+export async function listSessionsByExternalId(externalId: string, limit = 20): Promise<SessionListRow[]> {
   const result: QueryResult = await pool.query(
     `
     SELECT
@@ -60,23 +81,26 @@ export async function listSessionsByUserId(userId: string, limit = 20): Promise<
       s.title,
       s.created_at,
       s.updated_at,
-      COUNT(m.id)::int AS message_count,
+      (SELECT COUNT(*)::int FROM messages m WHERE m.session_id = s.id) AS message_count,
       (
         SELECT m2.content
         FROM messages m2
         WHERE m2.session_id = s.id
         ORDER BY m2.created_at DESC
         LIMIT 1
-      ) AS last_message
+      ) AS last_message,
+      u.display_name AS user_display_name,
+      u.gender AS user_gender,
+      u.birth_solar_datetime AS user_birth_solar_datetime,
+      u.bazi_json AS user_bazi_json
     FROM chat_sessions s
-    LEFT JOIN messages m ON m.session_id = s.id
-    WHERE s.user_id = $1
-    GROUP BY s.id
+    INNER JOIN users u ON u.id = s.user_id
+    WHERE u.external_id = $1
     ORDER BY s.updated_at DESC
     LIMIT $2;
     `,
-    [userId, limit],
+    [externalId, limit],
   );
 
-  return result.rows as unknown as SessionSummary[];
+  return result.rows as unknown as SessionListRow[];
 }

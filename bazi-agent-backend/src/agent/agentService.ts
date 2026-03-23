@@ -2,21 +2,73 @@ import { config } from '../config.js';
 import { createMemory, listRecentMemories } from '../db/repositories/memoriesRepo.js';
 import { createMessage, listRecentMessagesBySession } from '../db/repositories/messagesRepo.js';
 import { createSession, getSessionById, touchSession } from '../db/repositories/sessionsRepo.js';
+import { findUserSecret } from '../db/repositories/userSecretsRepo.js';
 import { upsertUser, updateUserBazi } from '../db/repositories/usersRepo.js';
+import { decryptSecret } from '../security/secretsCrypto.js';
 import { buildBaziProviders } from './baziProviders.js';
 import { hasChartRich, hasMissingFortuneCycles, mergeFortuneFromSupplement, normalizeBaziRecord } from './chartRich.js';
 import { extractMemoriesFromUserText } from './memoryExtractor.js';
 import { createModelProvider, RuleBasedModelProvider } from './modelProvider.js';
-import { buildSystemPrompt, mapConversationMessages } from './prompts.js';
-import type { AgentChatInput, AgentChatResult, BaziInput, ModelMessage } from './types.js';
+import { buildAnalysisSystemPrompt, buildAnswerSystemPrompt, mapConversationMessages } from './prompts.js';
+import { getCurrentTransitSnapshot } from './transitService.js';
+import type { AgentChatInput, AgentChatResult, BaziInput, ModelMessage, StructuredAnalysis } from './types.js';
 
 export class BadRequestError extends Error {}
 
 const baziProviders = buildBaziProviders();
-const modelProvider = createModelProvider();
+
+async function resolveUserOpenAiKey(userId: string): Promise<string | null> {
+  const secret = await findUserSecret(userId, 'openai');
+  if (!secret) {
+    return null;
+  }
+  try {
+    return decryptSecret(secret.encrypted_secret);
+  } catch (error) {
+    console.warn('[UserSecret] failed to decrypt OpenAI key', error);
+    return null;
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function extractStoredBaziSource(bazi: unknown): string | undefined {
+  if (!isRecord(bazi)) {
+    return undefined;
+  }
+  const chart = isRecord(bazi['chart_rich']) ? bazi['chart_rich'] : null;
+  const source = chart?.['source'];
+  return typeof source === 'string' && source.trim().length > 0 ? source : undefined;
+}
+
+function enrichStructuredAnalysis(
+  analysis: StructuredAnalysis,
+  options: {
+    hasBazi: boolean;
+    baziSource?: string | undefined;
+    transitGeneratedAt?: string | undefined;
+  },
+): StructuredAnalysis {
+  const chartBasis: StructuredAnalysis['chartBasis'] = {
+    ...analysis.chartBasis,
+    hasBazi: options.hasBazi,
+    transitIncluded: Boolean(options.transitGeneratedAt),
+  };
+
+  if (options.baziSource) {
+    chartBasis.baziSource = options.baziSource;
+  }
+
+  if (options.transitGeneratedAt) {
+    chartBasis.transitGeneratedAt = options.transitGeneratedAt;
+  }
+
+  return {
+    ...analysis,
+    chartBasis,
+  };
 }
 
 function createSessionTitle(message: string): string {
@@ -152,32 +204,57 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     }
   }
 
-  const [recentMessages, memories] = await Promise.all([
+  const [recentMessages, memories, transit] = await Promise.all([
     listRecentMessagesBySession(session.id, 12),
     listRecentMemories(activeUser.id, 8),
+    getCurrentTransitSnapshot(activeUser.gender === 0 || activeUser.gender === 1 ? activeUser.gender : null).catch((error) => {
+      console.warn('[Transit] failed to load current transit snapshot', error);
+      return null;
+    }),
   ]);
 
-  const systemPrompt = buildSystemPrompt({
+  const analysisSystemPrompt = buildAnalysisSystemPrompt({
     user: activeUser,
     memories,
     baziData: activeUser.bazi_json,
+    transitData: transit,
   });
 
-  const modelMessages: ModelMessage[] = [
-    { role: 'system', content: systemPrompt },
+  const analysisMessages: ModelMessage[] = [
+    { role: 'system', content: analysisSystemPrompt },
     ...mapConversationMessages(recentMessages),
   ];
 
+  const modelProvider = createModelProvider(await resolveUserOpenAiKey(activeUser.id));
   let assistantMessage = '';
+  let structured: StructuredAnalysis;
   let usedModelName = modelProvider.name;
+  let usedFallback = false;
 
   try {
-    assistantMessage = await modelProvider.generateReply(modelMessages);
+    structured = enrichStructuredAnalysis(await modelProvider.generateStructuredAnalysis(analysisMessages), {
+      hasBazi: Boolean(activeUser.bazi_json),
+      baziSource: baziSource ?? extractStoredBaziSource(activeUser.bazi_json),
+      transitGeneratedAt: transit?.generatedAt,
+    });
+    assistantMessage = await modelProvider.generateReply([
+      { role: 'system', content: buildAnswerSystemPrompt({ user: activeUser, analysis: structured }) },
+      { role: 'user', content: input.message },
+    ]);
   } catch (error) {
     console.warn(`[ModelProvider] ${modelProvider.name} failed, fallback to rules`, error);
     const fallback = new RuleBasedModelProvider();
-    assistantMessage = await fallback.generateReply(modelMessages);
+    structured = enrichStructuredAnalysis(await fallback.generateStructuredAnalysis(analysisMessages), {
+      hasBazi: Boolean(activeUser.bazi_json),
+      baziSource: baziSource ?? extractStoredBaziSource(activeUser.bazi_json),
+      transitGeneratedAt: transit?.generatedAt,
+    });
+    assistantMessage = await fallback.generateReply([
+      { role: 'system', content: buildAnswerSystemPrompt({ user: activeUser, analysis: structured }) },
+      { role: 'user', content: input.message },
+    ]);
     usedModelName = fallback.name;
+    usedFallback = true;
   }
 
   await createMessage({
@@ -187,8 +264,11 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     content: assistantMessage,
     metaJson: {
       modelProvider: usedModelName,
+      usedFallback,
       baziSource,
       baziComputed,
+      structured,
+      transitGeneratedAt: transit?.generatedAt ?? null,
     },
   });
 
@@ -198,6 +278,13 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     userId: activeUser.id,
     sessionId: session.id,
     assistantMessage,
+    structured,
+    meta: {
+      modelProvider: usedModelName,
+      usedFallback,
+      baziComputed,
+      baziSource,
+    },
     baziComputed,
     baziSource,
   };

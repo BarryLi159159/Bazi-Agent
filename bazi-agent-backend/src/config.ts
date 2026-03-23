@@ -6,6 +6,8 @@ import { z } from 'zod';
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(8787),
   DATABASE_URL: z.string().min(1),
+  SUPABASE_URL: z.string().url().optional(),
+  APP_SECRETS_KEY: z.string().min(32).optional(),
   OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com/v1'),
   OPENAI_MODEL: z.string().min(1).default('gpt-4.1-mini'),

@@ -1,4 +1,5 @@
-import type { ChartValidationRecord, UserProfileForm } from '../types';
+import { parseBaziPillars, wuxingClass } from '../baziRecordDisplay';
+import type { ChartValidationRecord, SessionSummary, UserProfileForm } from '../types';
 
 type Language = 'zh' | 'en';
 
@@ -9,6 +10,10 @@ export function InputStep(props: {
   birthDate: string;
   birthTime: string;
   sending: boolean;
+  sessions: SessionSummary[];
+  loadingSessions: boolean;
+  onSelectSession: (sessionId: string) => void;
+  onDeleteSession: (sessionId: string) => void;
   setProfile: (updater: (prev: UserProfileForm) => UserProfileForm) => void;
   setCalendarType: (value: 'solar' | 'lunar') => void;
   setBirthDate: (value: string) => void;
@@ -17,8 +22,25 @@ export function InputStep(props: {
   onStart: () => void;
   language: Language;
 }) {
-  const { t, profile, calendarType, birthDate, birthTime, sending, setProfile, setCalendarType, setBirthDate, setBirthTime, setChartValidationRecords, onStart, language } =
-    props;
+  const {
+    t,
+    profile,
+    calendarType,
+    birthDate,
+    birthTime,
+    sending,
+    sessions,
+    loadingSessions,
+    onSelectSession,
+    onDeleteSession,
+    setProfile,
+    setCalendarType,
+    setBirthDate,
+    setBirthTime,
+    setChartValidationRecords,
+    onStart,
+    language,
+  } = props;
 
   function addValidationRow() {
     setChartValidationRecords((prev) => [...prev, { year: null, eventType: '', polarity: '', impactLevel: null }]);
@@ -32,18 +54,137 @@ export function InputStep(props: {
     setChartValidationRecords((prev) => prev.filter((_item, idx) => idx !== index));
   }
 
+  function formatSolarLabel(iso: string | null | undefined): string {
+    if (!iso) {
+      return '—';
+    }
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) {
+      return '—';
+    }
+    if (language === 'zh') {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).formatToParts(d);
+      const y = parts.find((p) => p.type === 'year')?.value;
+      const m = parts.find((p) => p.type === 'month')?.value;
+      const day = parts.find((p) => p.type === 'day')?.value;
+      if (y && m && day) {
+        return `阳历${y}年${m}月${day}日`;
+      }
+    }
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  }
+
+  function genderLabel(g: number | null | undefined): string {
+    const n = g === null || g === undefined ? NaN : Number(g);
+    if (n === 1) {
+      return t.male;
+    }
+    if (n === 0) {
+      return t.female;
+    }
+    return '—';
+  }
+
   return (
-    <section className="input-page input-page-hero">
-      <div className="input-header">
-        <div>
-          <h2>{t.profileTitle}</h2>
-          <p className="muted">{language === 'zh' ? '填写出生信息后直接生成结果' : 'Fill profile and generate chart result directly'}</p>
+    <section className="input-page input-page-hero input-page-with-sidebar">
+      <aside className="input-history-panel">
+        <h3 className="input-history-title">{t.records}</h3>
+        <p className="muted input-history-hint">{t.recordsHint}</p>
+        {loadingSessions ? <p className="muted">...</p> : null}
+        {!loadingSessions && sessions.length === 0 ? <p className="muted">{t.noCases}</p> : null}
+        <div className="input-history-list">
+          {sessions.map((s) => {
+            const name = s.record_name?.trim() || (language === 'zh' ? '未命名' : 'Untitled');
+            const baziText = s.record_bazi?.trim() ?? '';
+            const parsed = baziText ? parseBaziPillars(baziText) : null;
+            const showSummary =
+              !baziText && s.last_message_preview && s.last_message_preview.trim().length > 0;
+            return (
+              <div key={s.id} className="input-record-card-wrap">
+                <button type="button" className="input-record-card" onClick={() => onSelectSession(s.id)}>
+                <div className="input-record-fields">
+                  <div className="input-record-kv">
+                    <span className="input-record-lbl">{t.labelName}</span>
+                    <span className="input-record-val input-record-val-strong">{name}</span>
+                  </div>
+                  <div className="input-record-kv">
+                    <span className="input-record-lbl">{t.labelBaziBlock}</span>
+                    <div className="input-record-eight" aria-label={t.labelBaziBlock}>
+                      {parsed ? (
+                        <>
+                          <div className="input-record-stems">
+                            {parsed.stems.map((c, i) => (
+                              <span key={`${s.id}-s-${i}`} className={`input-record-char ${wuxingClass(c, 'stem')}`}>
+                                {c}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="input-record-branches">
+                            {parsed.branches.map((c, i) => (
+                              <span key={`${s.id}-b-${i}`} className={`input-record-char ${wuxingClass(c, 'branch')}`}>
+                                {c}
+                              </span>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="input-record-empty">—</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="input-record-kv input-record-kv-inline">
+                    <span className="input-record-lbl">{t.labelGender}</span>
+                    <span className="input-record-val">{genderLabel(s.record_gender)}</span>
+                  </div>
+                  <div className="input-record-kv">
+                    <span className="input-record-lbl">{t.labelBirth}</span>
+                    <span className="input-record-val input-record-val-date">{formatSolarLabel(s.record_birth_solar)}</span>
+                  </div>
+                  {showSummary ? (
+                    <div className="input-record-kv input-record-kv-summary">
+                      <span className="input-record-lbl">{t.recordSummaryLabel}</span>
+                      <span className="input-record-val input-record-summary-text">{s.last_message_preview}</span>
+                    </div>
+                  ) : null}
+                </div>
+                {s.record_zodiac ? (
+                  <div className="input-record-zodiac" title={s.record_zodiac}>
+                    <span className="input-record-zodiac-inner">{s.record_zodiac}</span>
+                  </div>
+                ) : null}
+                </button>
+                <button
+                  type="button"
+                  className="input-record-delete"
+                  aria-label={t.deleteRecord}
+                  title={t.deleteRecord}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onDeleteSession(s.id);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
         </div>
-        <button className="signin-btn" type="button">
-          {t.signIn}
-        </button>
-      </div>
-      <div className="input-grid">
+      </aside>
+
+      <div className="input-main-column">
+        <div className="input-header">
+          <div className="input-header-center">
+            <h2>{t.profileTitle}</h2>
+            <p className="muted">{language === 'zh' ? '填写出生信息后直接生成结果' : 'Fill profile and generate chart result directly'}</p>
+          </div>
+        </div>
+        <div className="input-grid">
         <label>
           {t.displayName}
           <input value={profile.displayName} onChange={(e) => setProfile((p) => ({ ...p, displayName: e.target.value }))} />
@@ -172,9 +313,10 @@ export function InputStep(props: {
         )}
       </section>
 
-      <button className="primary-btn" type="button" disabled={sending} onClick={onStart}>
-        {sending ? '...' : t.start}
-      </button>
+        <button className="primary-btn" type="button" disabled={sending} onClick={onStart}>
+          {sending ? '...' : t.start}
+        </button>
+      </div>
     </section>
   );
 }

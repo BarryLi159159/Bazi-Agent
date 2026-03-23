@@ -1,84 +1,33 @@
 import { useEffect, useState } from 'react';
-import { fetchSessionMessages, fetchSessions, fetchUserByExternalId, sendChat } from './api';
-import { CaseDrawer } from './components/CaseDrawer';
+import type { Session } from '@supabase/supabase-js';
+import { deleteApiKey, deleteSession, fetchApiKeyStatus, fetchCurrentTransit, fetchCurrentUser, fetchSessionMessages, fetchSessions, saveApiKey, sendChat } from './api';
+import { SettingsModal } from './components/SettingsModal';
+import { AuthPanel } from './components/AuthPanel';
 import { HeaderBar } from './components/HeaderBar';
 import { InputStep } from './components/InputStep';
 import { LandingPage } from './components/LandingPage';
 import { ResultStep } from './components/ResultStep';
 import { normalizeChartRich } from './chartRich';
 import { getTexts, type Language } from './locales';
-import type { ChatMessage, SessionSummary, UserProfileForm, UserRecord } from './types';
+import { isSupabaseConfigured, supabase } from './supabase';
+import type { ChatResponse, SessionSummary, StructuredAnalysis, TransitSnapshot, UserApiKeyStatus, UserProfileForm, UserRecord } from './types';
 
-const DEFAULT_PROFILE: UserProfileForm = {
-  userExternalId: 'user_001',
-  displayName: 'Li',
-  gender: 1,
-  birthSolarDatetime: '1998-07-31T14:10',
+const EMPTY_PROFILE: UserProfileForm = {
+  displayName: '',
+  gender: null,
+  birthSolarDatetime: '',
   birthLocation: '',
   currentAge: null,
-  currentYear: new Date().getFullYear(),
+  currentYear: null,
   chartValidationRecords: [],
 };
 
-const PROFILE_STORAGE_KEY = 'bazi:profile';
 const LANGUAGE_STORAGE_KEY = 'bazi:language';
-const CASE_RECORDS_STORAGE_KEY = 'bazi:case-records';
 type PageStep = 'landing' | 'input' | 'result';
-
-interface CaseRecord {
-  id: string;
-  name: string;
-  gender: 0 | 1;
-  bazi: string;
-  basic: string;
-  createdAt: string;
-}
-
-function readProfile(): UserProfileForm {
-  const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
-  if (!raw) {
-    return DEFAULT_PROFILE;
-  }
-  try {
-    const parsed = JSON.parse(raw) as Partial<UserProfileForm>;
-    return {
-      ...DEFAULT_PROFILE,
-      ...parsed,
-      chartValidationRecords: Array.isArray(parsed.chartValidationRecords) ? parsed.chartValidationRecords : [],
-    };
-  } catch {
-    return DEFAULT_PROFILE;
-  }
-}
 
 function readLanguage(): Language {
   const raw = localStorage.getItem(LANGUAGE_STORAGE_KEY);
   return raw === 'en' ? 'en' : 'zh';
-}
-
-function readCaseRecords(): CaseRecord[] {
-  const raw = localStorage.getItem(CASE_RECORDS_STORAGE_KEY);
-  if (!raw) {
-    return [];
-  }
-  try {
-    return JSON.parse(raw) as CaseRecord[];
-  } catch {
-    return [];
-  }
-}
-
-function formatUpdatedAt(value: string, language: Language): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -88,104 +37,384 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
+function readStructuredAnalysis(value: unknown): StructuredAnalysis | null {
+  const record = asRecord(value);
+  const analysis = asRecord(record?.['analysis']);
+  const chartBasis = asRecord(record?.['chartBasis']);
+  if (!record || !analysis || !chartBasis) {
+    return null;
+  }
+
+  const reasoningSummary = Array.isArray(record['reasoningSummary'])
+    ? record['reasoningSummary'].filter((item): item is string => typeof item === 'string')
+    : [];
+  const coreThemes = Array.isArray(analysis['coreThemes'])
+    ? analysis['coreThemes'].filter((item): item is string => typeof item === 'string')
+    : [];
+  const risks = Array.isArray(analysis['risks']) ? analysis['risks'].filter((item): item is string => typeof item === 'string') : [];
+  const advice = Array.isArray(analysis['advice']) ? analysis['advice'].filter((item): item is string => typeof item === 'string') : [];
+  const timeWindows = Array.isArray(analysis['timeWindows'])
+    ? analysis['timeWindows']
+        .map((item) => {
+          const row = asRecord(item);
+          if (!row || typeof row['label'] !== 'string' || typeof row['signal'] !== 'string' || typeof row['note'] !== 'string') {
+            return null;
+          }
+          return {
+            label: row['label'],
+            signal: row['signal'] as StructuredAnalysis['analysis']['timeWindows'][number]['signal'],
+            note: row['note'],
+          };
+        })
+        .filter((item): item is StructuredAnalysis['analysis']['timeWindows'][number] => item !== null)
+    : [];
+
+  if (typeof record['intent'] !== 'string' || typeof record['questionSummary'] !== 'string' || typeof record['confidence'] !== 'number') {
+    return null;
+  }
+
+  return {
+    intent: record['intent'] as StructuredAnalysis['intent'],
+    questionSummary: record['questionSummary'],
+    chartBasis: {
+      hasBazi: Boolean(chartBasis['hasBazi']),
+      baziSource: typeof chartBasis['baziSource'] === 'string' ? chartBasis['baziSource'] : undefined,
+      transitIncluded: Boolean(chartBasis['transitIncluded']),
+      transitGeneratedAt: typeof chartBasis['transitGeneratedAt'] === 'string' ? chartBasis['transitGeneratedAt'] : undefined,
+    },
+    reasoningSummary,
+    analysis: {
+      coreThemes,
+      timeWindows,
+      risks,
+      advice,
+    },
+    confidence: record['confidence'],
+  };
+}
+
+function readChatResponseFromMessage(value: unknown, messageContent: string, sessionId: string): ChatResponse | null {
+  const meta = asRecord(value);
+  const structured = readStructuredAnalysis(meta?.['structured']);
+  if (!meta || !structured) {
+    return null;
+  }
+
+  return {
+    userId: '',
+    sessionId,
+    assistantMessage: messageContent,
+    structured,
+    meta: {
+      modelProvider: typeof meta['modelProvider'] === 'string' ? meta['modelProvider'] : 'unknown',
+      usedFallback: Boolean(meta['usedFallback']),
+      baziComputed: Boolean(meta['baziComputed']),
+      baziSource: typeof meta['baziSource'] === 'string' ? meta['baziSource'] : undefined,
+    },
+    baziComputed: Boolean(meta['baziComputed']),
+    baziSource: typeof meta['baziSource'] === 'string' ? meta['baziSource'] : undefined,
+  };
+}
+
 export function App() {
-  const [profile, setProfile] = useState<UserProfileForm>(() => readProfile());
+  const [profile, setProfile] = useState<UserProfileForm>(EMPTY_PROFILE);
   const [language, setLanguage] = useState<Language>(() => readLanguage());
   const [calendarType, setCalendarType] = useState<'solar' | 'lunar'>('solar');
   const [step, setStep] = useState<PageStep>('landing');
-  const [showCases, setShowCases] = useState(false);
-  const [caseRecords, setCaseRecords] = useState<CaseRecord[]>(() => readCaseRecords());
 
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
-  const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [baziUser, setBaziUser] = useState<UserRecord | null>(null);
+  const [transit, setTransit] = useState<TransitSnapshot | null>(null);
+  const [latestChat, setLatestChat] = useState<ChatResponse | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
+  const [session, setSession] = useState<Session | null>(null);
+  const [authEmail, setAuthEmail] = useState('');
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [authSending, setAuthSending] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [apiKeyDraft, setApiKeyDraft] = useState('');
+  const [apiKeyStatus, setApiKeyStatus] = useState<UserApiKeyStatus | null>(null);
+  const [apiKeySaving, setApiKeySaving] = useState(false);
+  const [apiKeyDeleting, setApiKeyDeleting] = useState(false);
   const t = getTexts(language);
-  const [birthDate, setBirthDate] = useState(() => profile.birthSolarDatetime.split('T')[0] ?? '1998-07-31');
-  const [birthTime, setBirthTime] = useState(() => profile.birthSolarDatetime.split('T')[1] ?? '14:10');
-
-  useEffect(() => {
-    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
-  }, [profile]);
+  const [birthDate, setBirthDate] = useState('');
+  const [birthTime, setBirthTime] = useState('');
 
   useEffect(() => {
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
   }, [language]);
 
   useEffect(() => {
-    localStorage.setItem(CASE_RECORDS_STORAGE_KEY, JSON.stringify(caseRecords));
-  }, [caseRecords]);
-
-  useEffect(() => {
-    const composed = `${birthDate}T${birthTime}`;
-    setProfile((prev) => ({ ...prev, birthSolarDatetime: composed }));
+    if (birthDate && birthTime) {
+      setProfile((prev) => ({ ...prev, birthSolarDatetime: `${birthDate}T${birthTime}` }));
+    } else {
+      setProfile((prev) => ({ ...prev, birthSolarDatetime: '' }));
+    }
   }, [birthDate, birthTime]);
 
-  async function refreshSessions(userExternalId: string): Promise<SessionSummary[]> {
-    const response = await fetchSessions(userExternalId);
+  useEffect(() => {
+    if (step !== 'input') {
+      return;
+    }
+    setProfile({ ...EMPTY_PROFILE });
+    setBirthDate('');
+    setBirthTime('');
+    setCalendarType('solar');
+  }, [step]);
+
+  useEffect(() => {
+    if (!supabase) {
+      setAuthReady(true);
+      return;
+    }
+
+    void supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session ?? null);
+      setAuthReady(true);
+    });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setAuthReady(true);
+      setError(null);
+      if (nextSession) {
+        setAuthMessage(null);
+        return;
+      }
+      setSessions([]);
+      setBaziUser(null);
+      setTransit(null);
+      setLatestChat(null);
+      setApiKeyStatus(null);
+      setSettingsOpen(false);
+      setStep('landing');
+    });
+
+    return () => {
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  async function refreshSessions(accessToken: string): Promise<SessionSummary[]> {
+    const response = await fetchSessions(accessToken);
     setSessions(response.sessions);
     return response.sessions;
   }
 
-  async function refreshUser(userExternalId: string): Promise<UserRecord | null> {
-    const result = await fetchUserByExternalId(userExternalId);
+  async function refreshUser(accessToken: string): Promise<UserRecord | null> {
+    const result = await fetchCurrentUser(accessToken);
     const user = result?.user ?? null;
     setBaziUser(user);
     return user;
   }
 
   useEffect(() => {
-    if (!profile.userExternalId.trim()) {
-      setSessions([]);
-      setActiveSessionId(undefined);
-      setMessages([]);
-      setBaziUser(null);
+    if (!settingsOpen || !session?.access_token) {
       return;
     }
+    void (async () => {
+      try {
+        const status = await fetchApiKeyStatus(session.access_token);
+        setApiKeyStatus(status);
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : t.loadFailed);
+      }
+    })();
+  }, [settingsOpen, session?.access_token, t.loadFailed]);
 
+  useEffect(() => {
+    if (step === 'landing' || !session?.access_token) {
+      return;
+    }
     void (async () => {
       setLoadingSessions(true);
       setError(null);
       try {
-        const loaded = await refreshSessions(profile.userExternalId);
-        await refreshUser(profile.userExternalId);
-        setActiveSessionId((current) => current ?? loaded[0]?.id);
+        await refreshSessions(session.access_token);
+        await refreshUser(session.access_token);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : t.loadFailed);
       } finally {
         setLoadingSessions(false);
       }
     })();
-  }, [profile.userExternalId, t.loadFailed]);
+  }, [session?.access_token, step, t.loadFailed]);
 
   useEffect(() => {
-    if (!activeSessionId) {
-      setMessages([]);
+    if (step !== 'result' || !session?.access_token) {
+      setTransit(null);
       return;
     }
-
     void (async () => {
       try {
-        const history = await fetchSessionMessages(activeSessionId);
-        setMessages(history.messages);
-      } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : t.loadFailed);
+        const response = await fetchCurrentTransit(session.access_token);
+        setTransit(response.transit);
+      } catch {
+        setTransit(null);
       }
     })();
-  }, [activeSessionId, t.loadFailed]);
+  }, [session?.access_token, step]);
+
+  async function openSessionFromHistory(_sessionId: string) {
+    if (!session?.access_token) {
+      setError(t.authRequired);
+      return;
+    }
+    setError(null);
+    try {
+      const history = await fetchSessionMessages(_sessionId, session.access_token);
+      const latestAssistant = [...history.messages].reverse().find((item) => item.role === 'assistant');
+      setLatestChat(latestAssistant ? readChatResponseFromMessage(latestAssistant.meta_json, latestAssistant.content, history.sessionId) : null);
+      await refreshUser(session.access_token);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : t.loadFailed);
+    }
+    setStep('result');
+  }
+
+  async function handleDeleteSession(sessionId: string) {
+    if (!session?.access_token) {
+      setError(t.authRequired);
+      return;
+    }
+    const confirm = t as Record<string, string>;
+    if (!window.confirm(confirm.confirmDeleteRecord ?? 'Delete?')) {
+      return;
+    }
+    setError(null);
+    try {
+      await deleteSession(sessionId, session.access_token);
+      await refreshSessions(session.access_token);
+      await refreshUser(session.access_token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.loadFailed);
+    }
+  }
+
+  async function handleSendMagicLink() {
+    if (!supabase || !isSupabaseConfigured) {
+      setAuthMessage(t.authMissingConfig);
+      return;
+    }
+    const email = authEmail.trim();
+    if (!email) {
+      setAuthMessage(t.authEmailPlaceholder);
+      return;
+    }
+    setAuthSending(true);
+    setAuthMessage(null);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      });
+      if (signInError) {
+        throw signInError;
+      }
+      setAuthMessage(t.authCheckInbox);
+    } catch (err) {
+      setAuthMessage(err instanceof Error ? err.message : t.loadFailed);
+    } finally {
+      setAuthSending(false);
+    }
+  }
+
+  async function handleSignOut() {
+    if (!supabase) {
+      return;
+    }
+    await supabase.auth.signOut();
+    setProfile({ ...EMPTY_PROFILE });
+    setBirthDate('');
+    setBirthTime('');
+    setCalendarType('solar');
+    setError(null);
+    setAuthMessage(null);
+    setApiKeyDraft('');
+  }
+
+  async function handleOpenSettings() {
+    if (!session?.access_token) {
+      setError(t.authRequired);
+      return;
+    }
+    setSettingsOpen(true);
+    setError(null);
+    try {
+      const status = await fetchApiKeyStatus(session.access_token);
+      setApiKeyStatus(status);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.loadFailed);
+    }
+  }
+
+  async function handleSaveApiKey() {
+    if (!session?.access_token) {
+      setError(t.authRequired);
+      return;
+    }
+    const value = apiKeyDraft.trim();
+    if (!value) {
+      return;
+    }
+    setApiKeySaving(true);
+    setError(null);
+    try {
+      await saveApiKey(session.access_token, value);
+      const status = await fetchApiKeyStatus(session.access_token);
+      setApiKeyStatus(status);
+      setApiKeyDraft('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.loadFailed);
+    } finally {
+      setApiKeySaving(false);
+    }
+  }
+
+  async function handleDeleteApiKey() {
+    if (!session?.access_token) {
+      setError(t.authRequired);
+      return;
+    }
+    setApiKeyDeleting(true);
+    setError(null);
+    try {
+      await deleteApiKey(session.access_token);
+      setApiKeyStatus({ provider: 'openai', hasKey: false, last4: null });
+      setApiKeyDraft('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.loadFailed);
+    } finally {
+      setApiKeyDeleting(false);
+    }
+  }
 
   async function runInitialChart() {
-    const messages = t as Record<string, string>;
+    if (!session?.access_token) {
+      setError(t.authRequired);
+      return;
+    }
+    const messagesDict = t as Record<string, string>;
+    if (profile.gender === null) {
+      setError(messagesDict.requiredGender ?? 'Please select gender');
+      return;
+    }
+    if (!birthDate.trim()) {
+      setError(messagesDict.requiredBirthDate ?? 'Birth date is required');
+      return;
+    }
     if (!birthTime.trim()) {
-      setError(messages.requiredBirthTime ?? 'Birth time is required');
+      setError(messagesDict.requiredBirthTime ?? 'Birth time is required');
       return;
     }
     if (!profile.birthLocation.trim()) {
-      setError(messages.requiredBirthLocation ?? 'Birth place is required');
+      setError(messagesDict.requiredBirthLocation ?? 'Birth place is required');
       return;
     }
 
@@ -193,27 +422,15 @@ export function App() {
     setSending(true);
     try {
       const seedPrompt = language === 'zh' ? '请先根据我的出生信息排盘并做简短解读。' : 'Please generate the Bazi chart first with a brief interpretation.';
-      const result = await sendChat({
+      const response = await sendChat({
         userProfile: profile,
         sessionId: undefined,
         message: seedPrompt,
+        accessToken: session.access_token,
       });
-      setActiveSessionId(result.sessionId);
-      const history = await fetchSessionMessages(result.sessionId);
-      setMessages(history.messages);
-      await refreshSessions(profile.userExternalId);
-      const freshUser = await refreshUser(profile.userExternalId);
-      const bazi = asRecord(freshUser?.bazi_json);
-      const chart = normalizeChartRich(bazi);
-      const nextRecord: CaseRecord = {
-        id: result.sessionId,
-        name: profile.displayName || profile.userExternalId,
-        gender: profile.gender,
-        bazi: chart?.basic.bazi ?? String(bazi?.['八字'] ?? '-'),
-        basic: `${chart?.basic.dayMaster ?? String(bazi?.['日主'] ?? '-')}/${chart?.basic.zodiac ?? String(bazi?.['生肖'] ?? '-')}`,
-        createdAt: new Date().toISOString(),
-      };
-      setCaseRecords((prev) => [nextRecord, ...prev.filter((item) => item.id !== nextRecord.id)].slice(0, 30));
+      setLatestChat(response);
+      await refreshSessions(session.access_token);
+      await refreshUser(session.access_token);
       setStep('result');
     } catch (err) {
       setError(err instanceof Error ? err.message : t.loadFailed);
@@ -231,10 +448,43 @@ export function App() {
         title={t.appTitle}
         subtitle={t.appSubtitle}
         language={language}
+        userEmail={session?.user.email ?? null}
+        settingsLabel={t.settings}
+        signOutLabel={t.signOut}
+        onOpenSettings={() => void handleOpenSettings()}
+        onSignOut={() => void handleSignOut()}
         onToggleLanguage={() => setLanguage((prev) => (prev === 'zh' ? 'en' : 'zh'))}
       />
 
+      {settingsOpen && session ? (
+        <SettingsModal
+          t={t}
+          session={session}
+          value={apiKeyDraft}
+          status={apiKeyStatus}
+          saving={apiKeySaving}
+          deleting={apiKeyDeleting}
+          onChange={setApiKeyDraft}
+          onSave={() => void handleSaveApiKey()}
+          onDelete={() => void handleDeleteApiKey()}
+          onSignOut={() => void handleSignOut()}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
+
       <main className="app-main">
+        {authReady && !session ? (
+          <AuthPanel
+            t={t}
+            email={authEmail}
+            loading={authSending}
+            message={authMessage}
+            configured={isSupabaseConfigured}
+            onEmailChange={setAuthEmail}
+            onSubmit={() => void handleSendMagicLink()}
+          />
+        ) : null}
+
         {step === 'landing' ? (
           <LandingPage
             heroKicker={t.heroKicker}
@@ -242,7 +492,13 @@ export function App() {
             heroLinePrimary={t.heroLinePrimary}
             heroLineAccent={t.heroLineAccent}
             getStarted={t.getStarted}
-            onStart={() => setStep('input')}
+            onStart={() => {
+              if (!session?.access_token) {
+                setError(t.authRequired);
+                return;
+              }
+              setStep('input');
+            }}
           />
         ) : null}
 
@@ -254,6 +510,10 @@ export function App() {
             birthDate={birthDate}
             birthTime={birthTime}
             sending={sending}
+            sessions={sessions}
+            loadingSessions={loadingSessions}
+            onSelectSession={(sessionId) => void openSessionFromHistory(sessionId)}
+            onDeleteSession={(sessionId) => void handleDeleteSession(sessionId)}
             setProfile={setProfile}
             setCalendarType={setCalendarType}
             setBirthDate={setBirthDate}
@@ -270,26 +530,15 @@ export function App() {
           <ResultStep
             t={t}
             chart={chartRich}
+            transit={transit}
+            latestChat={latestChat}
             onEdit={() => setStep('input')}
+            onBack={() => setStep('landing')}
           />
         ) : null}
 
         {error ? <div className="error-banner">{error}</div> : null}
       </main>
-
-      <CaseDrawer
-        open={showCases}
-        t={t}
-        cases={caseRecords}
-        loading={loadingSessions}
-        formatDate={(value) => formatUpdatedAt(value, language)}
-        onSelect={(sessionId) => {
-          setActiveSessionId(sessionId);
-          setStep('result');
-          setShowCases(false);
-        }}
-        onClose={() => setShowCases(false)}
-      />
     </div>
   );
 }
