@@ -178,17 +178,158 @@ function buildSharedContext(params: {
   ].join('\n');
 }
 
+function buildValidationRecords(profile: Record<string, unknown>): Array<Record<string, unknown>> {
+  const rawRecords = Array.isArray(profile['chartValidationRecords']) ? profile['chartValidationRecords'] : [];
+  const records: Array<Record<string, unknown>> = [];
+  for (const item of rawRecords) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    records.push({
+      year: typeof item['year'] === 'number' ? item['year'] : null,
+      eventType: pickStringField(item, 'eventType') ?? null,
+      polarity: pickStringField(item, 'polarity') ?? null,
+      impactLevel: typeof item['impactLevel'] === 'number' ? item['impactLevel'] : null,
+    });
+  }
+  return records;
+}
+
+function buildCompactFortune(fortune: Record<string, unknown> | null, currentAge: number | null): Record<string, unknown> | null {
+  if (!fortune) {
+    return null;
+  }
+
+  const rawDecades = Array.isArray(fortune['decades']) ? fortune['decades'] : [];
+  const decades: Array<Record<string, unknown>> = [];
+  for (const item of rawDecades) {
+    if (!isRecord(item)) {
+      continue;
+    }
+    decades.push({
+      ganZhi: pickStringField(item, 'ganZhi') ?? null,
+      startAge: typeof item['startAge'] === 'number' ? item['startAge'] : null,
+      endAge: typeof item['endAge'] === 'number' ? item['endAge'] : null,
+      startYear: typeof item['startYear'] === 'number' ? item['startYear'] : null,
+      endYear: typeof item['endYear'] === 'number' ? item['endYear'] : null,
+      cycleState: pickStringField(item, 'cycleState') ?? null,
+      stemTenGod: pickStringField(item, 'stemTenGod') ?? null,
+      branchTenGods: Array.isArray(item['branchTenGods']) ? item['branchTenGods'] : [],
+      hiddenStems: Array.isArray(item['hiddenStems']) ? item['hiddenStems'] : [],
+    });
+    if (decades.length >= 8) {
+      break;
+    }
+  }
+
+  const currentDecade =
+    currentAge === null
+      ? null
+      : decades.find((item) => {
+          const startAge = typeof item['startAge'] === 'number' ? item['startAge'] : null;
+          const endAge = typeof item['endAge'] === 'number' ? item['endAge'] : null;
+          return startAge !== null && endAge !== null && currentAge >= startAge && currentAge <= endAge;
+        }) ?? null;
+
+  return {
+    startDate: pickStringField(fortune, 'startDate') ?? null,
+    startAge: typeof fortune['startAge'] === 'number' ? fortune['startAge'] : null,
+    currentDecade,
+    decades,
+  };
+}
+
+export function buildLlmContextJson(params: {
+  user: DbUser;
+  memories: DbUserMemory[];
+  baziData: unknown;
+  transitData?: TransitSnapshot | null;
+}): Record<string, unknown> {
+  const profile = isRecord(params.user.profile_json) ? params.user.profile_json : {};
+  const currentAge = typeof profile['currentAge'] === 'number' ? profile['currentAge'] : null;
+  const currentYear = typeof profile['currentYear'] === 'number' ? profile['currentYear'] : null;
+
+  const bazi = isRecord(params.baziData) ? params.baziData : null;
+  const chart = isRecord(bazi?.['chart_rich']) ? bazi['chart_rich'] : null;
+  const basic = isRecord(chart?.['basic']) ? chart['basic'] : null;
+  const fiveElements = isRecord(chart?.['fiveElements']) ? chart['fiveElements'] : null;
+  const relations = isRecord(chart?.['relations']) ? chart['relations'] : null;
+  const fortune = isRecord(chart?.['fortune']) ? chart['fortune'] : null;
+  const relationHighlights = Array.isArray(relations?.['highlights']) ? relations['highlights'].slice(0, 8) : [];
+
+  return {
+    profile: {
+      displayName: params.user.display_name ?? null,
+      gender: params.user.gender === 0 ? 'female' : params.user.gender === 1 ? 'male' : null,
+      birthSolarDatetime: params.user.birth_solar_datetime ?? null,
+      birthLunarDatetime: params.user.birth_lunar_datetime ?? null,
+      birthLocation: pickStringField(profile, 'birthLocation') ?? null,
+      currentAge,
+      currentYear,
+      validationRecords: buildValidationRecords(profile),
+    },
+    memories: params.memories.slice(0, 8).map((item) => ({
+      type: item.memory_type,
+      content: item.content,
+    })),
+    natalChart: {
+      hasBazi: Boolean(chart || params.baziData),
+      source: isRecord(chart) ? (pickStringField(chart, 'source') ?? null) : null,
+      basic: basic
+        ? {
+            bazi: pickStringField(basic, 'bazi') ?? null,
+            solar: pickStringField(basic, 'solar') ?? null,
+            lunar: pickStringField(basic, 'lunar') ?? null,
+            zodiac: pickStringField(basic, 'zodiac') ?? null,
+            dayMaster: pickStringField(basic, 'dayMaster') ?? null,
+          }
+        : null,
+      pillars: isRecord(chart?.['pillars']) ? chart['pillars'] : null,
+      fiveElements: fiveElements
+        ? {
+            metal: fiveElements['metal'] ?? null,
+            wood: fiveElements['wood'] ?? null,
+            water: fiveElements['water'] ?? null,
+            fire: fiveElements['fire'] ?? null,
+            earth: fiveElements['earth'] ?? null,
+            strength: fiveElements['strength'] ?? null,
+            strongRoot: fiveElements['strongRoot'] ?? null,
+          }
+        : null,
+      relationHighlights,
+    },
+    fortune: buildCompactFortune(fortune, currentAge),
+    transit: params.transitData
+      ? {
+          source: params.transitData.source,
+          generatedAt: params.transitData.generatedAt,
+          layers: params.transitData.layers.map((layer) => ({
+            key: layer.key,
+            ganZhi: layer.ganZhi,
+            stem: layer.stem,
+            stemTenGod: layer.stemTenGod,
+            branch: layer.branch,
+            hiddenStems: layer.hiddenStems,
+            naYin: layer.naYin,
+            xingYun: layer.xingYun,
+          })),
+        }
+      : null,
+  };
+}
+
 export function buildAnalysisSystemPrompt(params: {
   user: DbUser;
   memories: DbUserMemory[];
   baziData: unknown;
   transitData?: TransitSnapshot | null;
 }): string {
+  const llmContextJson = buildLlmContextJson(params);
   return [
     '你是一个中文八字咨询分析助手。',
     '你的任务不是直接输出散文，而是先按固定八字诊断 pipeline 输出一个合法 JSON。',
     '核心方法是“系统结构 + 问题修复”，不是只看身强身弱。',
-    '必须优先参考八字 engine 已给出的结构化数据，不要凭空编造传统术语。',
+    '必须优先参考下面提供的 llmContextJson，它已经压缩为高信号字段，不要被无关展示信息干扰。',
     '如果证据不足，可以保守判断，并在对应字段里说明。',
     '不要输出完整内部推理，只输出简短 reasoningSummary。',
     '所有输出必须是一个合法 JSON 对象，不能出现 Markdown 代码块，不能出现 JSON 以外的任何文字。',
@@ -212,7 +353,8 @@ export function buildAnalysisSystemPrompt(params: {
     '',
     '输出风格：稳健、克制、以结构证据为先，不要夸张，不要宿命论。',
     '',
-    buildSharedContext(params),
+    'llmContextJson：',
+    JSON.stringify(llmContextJson, null, 2),
   ].join('\n');
 }
 

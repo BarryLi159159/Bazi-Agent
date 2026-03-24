@@ -9,6 +9,10 @@ interface OpenAIChatResponse {
   }>;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 function extractJsonObject(raw: string): string {
   const trimmed = raw.trim();
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
@@ -152,11 +156,18 @@ export class RuleBasedModelProvider implements ModelProvider {
   async generateStructuredAnalysis(messages: ModelMessage[]): Promise<StructuredAnalysis> {
     const lastUser = [...messages].reverse().find((item) => item.role === 'user')?.content ?? '';
     const system = messages.find((item) => item.role === 'system')?.content ?? '';
-    const memorySection = this.extractSection(system, '用户长期记忆：', '八字信息：');
-    const baziSection = this.extractSection(system, '八字信息：', '当前流转信息：');
-    const transitSection = this.extractSection(system, '当前流转信息：');
-    const hasBazi = Boolean(baziSection && !/暂无八字信息/.test(baziSection));
-    const transitIncluded = Boolean(transitSection && !/暂无当前流转信息/.test(transitSection));
+    const llmContextText = this.extractSection(system, 'llmContextJson：');
+    let llmContext: Record<string, unknown> | null = null;
+    try {
+      llmContext = isRecord(JSON.parse(extractJsonObject(llmContextText))) ? (JSON.parse(extractJsonObject(llmContextText)) as Record<string, unknown>) : null;
+    } catch {
+      llmContext = null;
+    }
+
+    const natalChart = isRecord(llmContext?.['natalChart']) ? llmContext['natalChart'] : null;
+    const transit = isRecord(llmContext?.['transit']) ? llmContext['transit'] : null;
+    const hasBazi = Boolean(natalChart && (natalChart['hasBazi'] === true || natalChart['basic'] || natalChart['pillars']));
+    const transitIncluded = Boolean(transit && Array.isArray(transit['layers']) && transit['layers'].length > 0);
 
     const usefulGods = this.detectUsefulGods(hasBazi, transitIncluded);
 
@@ -235,8 +246,9 @@ export class RuleBasedModelProvider implements ModelProvider {
     const lastUser = [...messages].reverse().find((item) => item.role === 'user')?.content ?? '';
     const system = messages.find((item) => item.role === 'system')?.content ?? '';
 
-    const memorySection = this.extractSection(system, '用户长期记忆：', '八字信息：');
-    const baziSection = this.extractSection(system, '八字信息：').slice(0, 400);
+    const llmContextText = this.extractSection(system, 'llmContextJson：');
+    const memorySection = llmContextText.slice(0, 220);
+    const baziSection = llmContextText.slice(0, 400);
 
     const jsonText = this.extractSection(system, '结构化分析 JSON：');
     if (jsonText) {

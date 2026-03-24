@@ -9,7 +9,7 @@ import { buildBaziProviders } from './baziProviders.js';
 import { hasChartRich, hasMissingFortuneCycles, mergeFortuneFromSupplement, normalizeBaziRecord } from './chartRich.js';
 import { extractMemoriesFromUserText } from './memoryExtractor.js';
 import { createModelProvider, RuleBasedModelProvider } from './modelProvider.js';
-import { buildAnalysisSystemPrompt, buildAnswerSystemPrompt, mapConversationMessages } from './prompts.js';
+import { buildAnalysisSystemPrompt, buildAnswerSystemPrompt, buildLlmContextJson, mapConversationMessages } from './prompts.js';
 import { getCurrentTransitSnapshot } from './transitService.js';
 import type { AgentChatInput, AgentChatResult, BaziInput, ModelMessage, StructuredAnalysis } from './types.js';
 
@@ -123,6 +123,7 @@ function buildExportJsonPayload(params: {
   structured: StructuredAnalysis;
   transit: unknown;
   userMessage: string;
+  llmContextJson: Record<string, unknown>;
   analysisSystemPrompt: string;
   answerSystemPrompt: string;
 }): Record<string, unknown> {
@@ -170,6 +171,7 @@ function buildExportJsonPayload(params: {
     transit: params.transit ?? null,
     prompt: {
       userQuestion: params.userMessage,
+      llmContextJson: params.llmContextJson,
       analysisSystemPrompt: params.analysisSystemPrompt,
       answerSystemPrompt: params.answerSystemPrompt,
     },
@@ -319,6 +321,13 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     }),
   ]);
 
+  const llmContextJson = buildLlmContextJson({
+    user: activeUser,
+    memories,
+    baziData: activeUser.bazi_json,
+    transitData: transit,
+  });
+
   const analysisSystemPrompt = buildAnalysisSystemPrompt({
     user: activeUser,
     memories,
@@ -373,6 +382,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     structured,
     transit,
     userMessage: input.message,
+    llmContextJson,
     analysisSystemPrompt,
     answerSystemPrompt,
   });
