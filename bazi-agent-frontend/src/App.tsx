@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { deleteApiKey, deleteSession, fetchApiKeyStatus, fetchCurrentTransit, fetchCurrentUser, fetchSessions, saveApiKey, sendChat } from './api';
+import { deleteApiKey, deleteSession, fetchApiKeyStatus, fetchCurrentTransit, fetchCurrentUser, fetchSessionMessages, fetchSessions, saveApiKey, sendChat } from './api';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthPanel } from './components/AuthPanel';
 import { HeaderBar } from './components/HeaderBar';
@@ -10,7 +10,7 @@ import { ResultStep } from './components/ResultStep';
 import { normalizeChartRich } from './chartRich';
 import { getTexts, type Language } from './locales';
 import { isSupabaseConfigured, supabase } from './supabase';
-import type { SessionSummary, TransitSnapshot, UserApiKeyStatus, UserProfileForm, UserRecord } from './types';
+import type { ChatMessage, SessionSummary, StructuredAnalysis, TransitSnapshot, UserApiKeyStatus, UserProfileForm, UserRecord } from './types';
 
 const EMPTY_PROFILE: UserProfileForm = {
   displayName: '',
@@ -37,6 +37,54 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
+function readStructuredAnalysis(value: unknown): StructuredAnalysis | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  const finalSummary = asRecord(record.finalSummary);
+  const structureType = asRecord(record.structureType);
+  const failure = asRecord(record.failure);
+  const rescue = asRecord(record.rescue);
+  const luckFlow = asRecord(record.luckFlow);
+
+  if (!finalSummary || !structureType || !failure || !rescue || !luckFlow) {
+    return null;
+  }
+
+  return value as StructuredAnalysis;
+}
+
+function extractLatestStructuredResult(messages: ChatMessage[]): {
+  assistantMessage: string | null;
+  structured: StructuredAnalysis | null;
+} {
+  let fallbackAssistantMessage: string | null = null;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== 'assistant') {
+      continue;
+    }
+
+    fallbackAssistantMessage ??= message.content;
+    const meta = asRecord(message.meta_json);
+    const structured = readStructuredAnalysis(meta?.structured);
+    if (structured) {
+      return {
+        assistantMessage: message.content,
+        structured,
+      };
+    }
+  }
+
+  return {
+    assistantMessage: fallbackAssistantMessage,
+    structured: null,
+  };
+}
+
 export function App() {
   const [profile, setProfile] = useState<UserProfileForm>(EMPTY_PROFILE);
   const [language, setLanguage] = useState<Language>(() => readLanguage());
@@ -46,6 +94,12 @@ export function App() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [baziUser, setBaziUser] = useState<UserRecord | null>(null);
   const [transit, setTransit] = useState<TransitSnapshot | null>(null);
+  const [latestStructured, setLatestStructured] = useState<StructuredAnalysis | null>(null);
+  const [latestAssistantMessage, setLatestAssistantMessage] = useState<string | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatDraft, setChatDraft] = useState('');
+  const [chatSending, setChatSending] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -108,6 +162,11 @@ export function App() {
       setSessions([]);
       setBaziUser(null);
       setTransit(null);
+      setLatestStructured(null);
+      setLatestAssistantMessage(null);
+      setActiveSessionId(null);
+      setChatMessages([]);
+      setChatDraft('');
       setApiKeyStatus(null);
       setSettingsOpen(false);
       setStep('landing');
@@ -178,6 +237,15 @@ export function App() {
     })();
   }, [session?.access_token, step]);
 
+  async function syncSessionConversation(sessionId: string, accessToken: string): Promise<void> {
+    const history = await fetchSessionMessages(sessionId, accessToken);
+    const restored = extractLatestStructuredResult(history.messages);
+    setActiveSessionId(sessionId);
+    setChatMessages(history.messages.filter((message) => message.role !== 'system'));
+    setLatestStructured(restored.structured);
+    setLatestAssistantMessage(restored.assistantMessage);
+  }
+
   async function openSessionFromHistory(_sessionId: string) {
     if (!session?.access_token) {
       setError(t.authRequired);
@@ -185,6 +253,7 @@ export function App() {
     }
     setError(null);
     try {
+      await syncSessionConversation(_sessionId, session.access_token);
       await refreshUser(session.access_token);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : t.loadFailed);
@@ -253,6 +322,11 @@ export function App() {
     setError(null);
     setAuthMessage(null);
     setApiKeyDraft('');
+    setLatestStructured(null);
+    setLatestAssistantMessage(null);
+    setActiveSessionId(null);
+    setChatMessages([]);
+    setChatDraft('');
   }
 
   async function handleOpenSettings() {
@@ -338,12 +412,13 @@ export function App() {
     setSending(true);
     try {
       const seedPrompt = language === 'zh' ? '请先根据我的出生信息排盘并做简短解读。' : 'Please generate the Bazi chart first with a brief interpretation.';
-      await sendChat({
+      const response = await sendChat({
         userProfile: profile,
         sessionId: undefined,
         message: seedPrompt,
         accessToken: session.access_token,
       });
+      await syncSessionConversation(response.sessionId, session.access_token);
       await refreshSessions(session.access_token);
       await refreshUser(session.access_token);
       setStep('result');
@@ -351,6 +426,39 @@ export function App() {
       setError(err instanceof Error ? err.message : t.loadFailed);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function handleSendFollowUp() {
+    if (!session?.access_token) {
+      setError(t.authRequired);
+      return;
+    }
+    if (!activeSessionId) {
+      setError(t.diagnosisChatMissingSession ?? '当前会话还未准备好。');
+      return;
+    }
+
+    const message = chatDraft.trim();
+    if (!message) {
+      return;
+    }
+
+    setChatSending(true);
+    setError(null);
+    try {
+      await sendChat({
+        sessionId: activeSessionId,
+        message,
+        accessToken: session.access_token,
+      });
+      setChatDraft('');
+      await syncSessionConversation(activeSessionId, session.access_token);
+      await refreshSessions(session.access_token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.loadFailed);
+    } finally {
+      setChatSending(false);
     }
   }
 
@@ -446,6 +554,13 @@ export function App() {
             t={t}
             chart={chartRich}
             transit={transit}
+            structuredAnalysis={latestStructured}
+            assistantMessage={latestAssistantMessage}
+            chatMessages={chatMessages}
+            chatDraft={chatDraft}
+            chatSending={chatSending}
+            onChatDraftChange={setChatDraft}
+            onChatSubmit={() => void handleSendFollowUp()}
             onEdit={() => setStep('input')}
             onBack={() => setStep('landing')}
           />

@@ -24,34 +24,37 @@ function toIsoWithOffset(localDateTime: string): string | undefined {
 }
 
 export async function sendChat(params: {
-  userProfile: UserProfileForm;
+  userProfile?: UserProfileForm;
   sessionId?: string;
   message: string;
   accessToken: string;
 }): Promise<ChatResponse> {
-  const birthSolarDatetime = toIsoWithOffset(params.userProfile.birthSolarDatetime);
+  const birthSolarDatetime = params.userProfile ? toIsoWithOffset(params.userProfile.birthSolarDatetime) : undefined;
 
   const body = {
     sessionId: params.sessionId,
     message: params.message,
-    userProfile: {
-      displayName: params.userProfile.displayName,
-      gender: params.userProfile.gender ?? undefined,
-      birthSolarDatetime,
-      extra: {
-        birthLocation: params.userProfile.birthLocation,
-        currentAge: params.userProfile.currentAge,
-        currentYear: params.userProfile.currentYear,
-        chartValidationRecords: params.userProfile.chartValidationRecords,
-      },
-    },
-    baziInput: birthSolarDatetime
+    userProfile: params.userProfile
       ? {
-          solarDatetime: birthSolarDatetime,
+          displayName: params.userProfile.displayName,
           gender: params.userProfile.gender ?? undefined,
-          eightCharProviderSect: 2 as const,
+          birthSolarDatetime,
+          extra: {
+            birthLocation: params.userProfile.birthLocation,
+            currentAge: params.userProfile.currentAge,
+            currentYear: params.userProfile.currentYear,
+            chartValidationRecords: params.userProfile.chartValidationRecords,
+          },
         }
       : undefined,
+    baziInput:
+      birthSolarDatetime && params.userProfile
+        ? {
+            solarDatetime: birthSolarDatetime,
+            gender: params.userProfile.gender ?? undefined,
+            eightCharProviderSect: 2 as const,
+          }
+        : undefined,
   };
 
   const response = await fetch(`${API_BASE}/api/chat`, {

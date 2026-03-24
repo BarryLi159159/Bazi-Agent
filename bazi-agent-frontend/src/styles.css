@@ -1031,6 +1031,215 @@ textarea {
   gap: 12px;
 }
 
+.diagnosis-panel {
+  display: grid;
+  gap: 14px;
+  background:
+    radial-gradient(circle at top right, rgba(95, 63, 223, 0.08), transparent 28%),
+    linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+}
+
+.diagnosis-placeholder {
+  display: grid;
+  gap: 8px;
+}
+
+.diagnosis-lead-card {
+  border: 1px solid #e6eaf3;
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(30, 41, 59, 0.04);
+}
+
+.diagnosis-lead-card small,
+.diagnosis-summary-card small,
+.diagnosis-section-block small,
+.diagnosis-kv small {
+  display: block;
+  color: #7c8797;
+  font-size: 0.76rem;
+  margin-bottom: 6px;
+}
+
+.diagnosis-lead {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.7;
+  color: #1f2937;
+}
+
+.diagnosis-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.diagnosis-summary-card {
+  border: 1px solid #e7ebf3;
+  border-radius: 16px;
+  padding: 14px;
+  background:
+    radial-gradient(circle at top right, rgba(60, 149, 239, 0.09), transparent 40%),
+    linear-gradient(180deg, #fdfefe 0%, #ffffff 100%);
+}
+
+.diagnosis-summary-card strong {
+  color: #162033;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.diagnosis-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.diagnosis-card {
+  border: 1px solid #e6eaf2;
+  border-radius: 16px;
+  padding: 14px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(18, 32, 62, 0.04);
+  display: grid;
+  gap: 12px;
+}
+
+.diagnosis-card-wide {
+  grid-column: 1 / -1;
+}
+
+.diagnosis-card h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: #1b2432;
+}
+
+.diagnosis-card p {
+  margin: 0;
+  line-height: 1.6;
+  color: #3f4756;
+}
+
+.diagnosis-kv-grid,
+.diagnosis-double-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.diagnosis-kv {
+  border: 1px solid #edf1f6;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fafcff;
+}
+
+.diagnosis-kv span {
+  color: #1f2937;
+  line-height: 1.4;
+}
+
+.diagnosis-section-block {
+  display: grid;
+  gap: 8px;
+}
+
+.diagnosis-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.diagnosis-tag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #ddd9fb;
+  background: #f4f1ff;
+  color: #4d42a2;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.diagnosis-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  color: #3b4454;
+}
+
+.diagnosis-empty {
+  color: #8a94a5;
+}
+
+.result-chat-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.result-chat-intro {
+  margin: -4px 0 0;
+  line-height: 1.55;
+}
+
+.result-chat-thread {
+  display: grid;
+  gap: 10px;
+}
+
+.chat-bubble {
+  border: 1px solid #e6eaf2;
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: #fff;
+  display: grid;
+  gap: 8px;
+}
+
+.chat-bubble.user {
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  border-color: #d9e4f6;
+}
+
+.chat-bubble.assistant {
+  background:
+    radial-gradient(circle at top right, rgba(95, 63, 223, 0.08), transparent 32%),
+    linear-gradient(180deg, #fbfaff 0%, #ffffff 100%);
+  border-color: #e3ddfb;
+}
+
+.chat-bubble-head strong {
+  color: #1f2937;
+  font-size: 0.85rem;
+}
+
+.chat-bubble p {
+  margin: 0;
+  line-height: 1.65;
+  color: #374151;
+  white-space: pre-wrap;
+}
+
+.result-chat-composer {
+  display: grid;
+  gap: 10px;
+}
+
+.result-chat-composer textarea {
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+}
+
+.result-chat-submit {
+  margin-top: 0;
+  justify-self: flex-end;
+}
+
 .agent-output-panel {
   display: grid;
   gap: 12px;
@@ -1741,6 +1950,9 @@ textarea {
   }
   .result-top-grid,
   .result-bottom-grid,
+  .diagnosis-overview-grid,
+  .diagnosis-card-grid,
+  .diagnosis-double-column,
   .agent-grid,
   .agent-time-grid,
   .agent-meta-row {
@@ -1777,7 +1989,8 @@ textarea {
   .transit-grid,
   .fortune-decade-grid,
   .transit-meta-grid,
-  .fortune-card-meta-grid {
+  .fortune-card-meta-grid,
+  .diagnosis-kv-grid {
     grid-template-columns: 1fr;
   }
   .panel-title-row,

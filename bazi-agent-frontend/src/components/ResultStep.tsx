@@ -1,20 +1,29 @@
 import type { NormalizedChartRich } from '../chartRich';
-import type { TransitSnapshot } from '../types';
+import type { ChatMessage, StructuredAnalysis, TransitSnapshot } from '../types';
+import { BaziDiagnosisSection } from './result/BaziDiagnosisSection';
 import { FiveElementsSection } from './result/FiveElementsSection';
 import { FortuneSection } from './result/FortuneSection';
 import { GodsSection } from './result/GodsSection';
 import { PillarsSection } from './result/PillarsSection';
 import { RelationsSection } from './result/RelationsSection';
+import { ResultChatSection } from './result/ResultChatSection';
 import { TransitSection } from './result/TransitSection';
 
 export function ResultStep(props: {
   t: Record<string, string>;
   chart: NormalizedChartRich | null;
   transit: TransitSnapshot | null;
+  structuredAnalysis: StructuredAnalysis | null;
+  assistantMessage: string | null;
+  chatMessages: ChatMessage[];
+  chatDraft: string;
+  chatSending: boolean;
+  onChatDraftChange: (value: string) => void;
+  onChatSubmit: () => void;
   onEdit: () => void;
   onBack: () => void;
 }) {
-  const { t, chart, transit, onEdit, onBack } = props;
+  const { t, chart, transit, structuredAnalysis, assistantMessage, chatMessages, chatDraft, chatSending, onChatDraftChange, onChatSubmit, onEdit, onBack } = props;
 
   if (!chart) {
     return (
@@ -70,6 +79,8 @@ export function ResultStep(props: {
         ))}
       </section>
 
+      <BaziDiagnosisSection t={t} analysis={structuredAnalysis} assistantMessage={assistantMessage} />
+
       <div className="result-top-grid">
         <PillarsSection title={t.panelPillars} pillars={chart.pillars} />
         <FiveElementsSection title={t.panelElements} data={chart.fiveElements} />
@@ -91,6 +102,15 @@ export function ResultStep(props: {
         <GodsSection title={t.panelGods} gods={chart.gods} />
         <RelationsSection title={t.panelRelations} highlights={chart.relations.highlights} />
       </div>
+
+      <ResultChatSection
+        t={t}
+        messages={chatMessages}
+        draft={chatDraft}
+        sending={chatSending}
+        onDraftChange={onChatDraftChange}
+        onSubmit={onChatSubmit}
+      />
 
     </section>
   );
