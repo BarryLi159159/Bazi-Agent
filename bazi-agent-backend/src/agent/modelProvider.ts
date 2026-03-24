@@ -129,23 +129,24 @@ export class RuleBasedModelProvider implements ModelProvider {
     ].join('\n');
   }
 
-  private detectIntent(lastUser: string): StructuredAnalysis['intent'] {
-    if (/事业|工作|求职|面试|升职|职业/.test(lastUser)) {
-      return 'career';
+  private detectQuestionSummary(lastUser: string): string {
+    return lastUser.slice(0, 80) || '用户希望获得命盘系统分析';
+  }
+
+  private detectUsefulGods(hasBazi: boolean, transitIncluded: boolean): { primary: string[]; support: string[]; rationale: string } {
+    if (!hasBazi) {
+      return {
+        primary: ['待补盘'],
+        support: [],
+        rationale: '当前缺少完整命盘，暂时无法稳定锁定用神，只能先补足基础盘。 ',
+      };
     }
-    if (/感情|恋爱|婚姻|伴侣|桃花/.test(lastUser)) {
-      return 'relationship';
-    }
-    if (/财运|收入|赚钱|投资|副业/.test(lastUser)) {
-      return 'wealth';
-    }
-    if (/健康|身体|睡眠|情绪|焦虑/.test(lastUser)) {
-      return 'health';
-    }
-    if (/学习|考试|留学|读书/.test(lastUser)) {
-      return 'study';
-    }
-    return 'general';
+
+    return {
+      primary: transitIncluded ? ['木', '水'] : ['木'],
+      support: transitIncluded ? ['水'] : ['火'],
+      rationale: '先用能修复结构失衡、同时避免放大冲克的元素作为主用神，再用辅助元素维持系统连续性。',
+    };
   }
 
   async generateStructuredAnalysis(messages: ModelMessage[]): Promise<StructuredAnalysis> {
@@ -157,38 +158,74 @@ export class RuleBasedModelProvider implements ModelProvider {
     const hasBazi = Boolean(baziSection && !/暂无八字信息/.test(baziSection));
     const transitIncluded = Boolean(transitSection && !/暂无当前流转信息/.test(transitSection));
 
+    const usefulGods = this.detectUsefulGods(hasBazi, transitIncluded);
+
     return {
-      intent: this.detectIntent(lastUser),
-      questionSummary: lastUser.slice(0, 80) || '用户希望获得命理建议',
+      questionSummary: this.detectQuestionSummary(lastUser),
       chartBasis: {
         hasBazi,
+        baziSource: hasBazi ? 'stored-chart' : undefined,
         transitIncluded,
       },
       reasoningSummary: [
-        '先识别本轮问题的主题和时间范围。',
-        hasBazi ? '结合已有八字信息提炼主要结构信号。' : '当前缺少完整八字，只能做保守判断。',
-        transitIncluded ? '把当前流转层级纳入节奏判断。' : '当前没有纳入流转细节。',
+        '先识别命盘属于哪类结构，再判断是否极端。',
+        hasBazi ? '先找系统的病，再看是否有药能修。' : '当前缺少完整八字，诊断只能保守输出。',
+        transitIncluded ? '把当前流转纳入系统稳定性与运势影响判断。' : '当前未纳入流转，只做基础结构判断。',
       ],
-      analysis: {
-        coreThemes: [this.detectIntent(lastUser), hasBazi ? '命盘结构' : '补充信息', transitIncluded ? '当前节奏' : '基础判断'],
-        timeWindows: [
-          {
-            label: '近30天',
-            signal: 'medium',
-            note: '适合先收拢问题和目标，避免同时推进过多方向。',
-          },
-          {
-            label: '未来3个月',
-            signal: hasBazi ? 'high' : 'medium',
-            note: '更适合根据阶段反馈调整策略，逐步放大有效动作。',
-          },
-        ],
-        risks: memorySection ? ['不要被单一事件放大情绪波动。'] : ['目前资料有限，结论要保守使用。'],
-        advice: [
-          '先把这次咨询收敛成一个最核心的问题。',
-          '把目标拆成近30天和3个月两个节奏。',
-          transitIncluded ? '优先顺着当前节奏推进，不要同时频繁换方向。' : '补充更多出生与近况信息后，判断会更稳。',
-        ],
+      structureType: {
+        pattern: hasBazi ? 'ordinary' : 'uncertain',
+        isExtreme: false,
+        extremeNote: hasBazi ? '当前未见足以直接判定为极端从格或化格的证据。' : '缺少完整盘，无法判断是否极端结构。',
+        followAdjustment: hasBazi ? '若后续确认是从格，应改用顺势分析逻辑，不再以扶抑为主。' : '暂无从格判定依据。',
+      },
+      failure: {
+        fiveElementImbalance: hasBazi ? ['五行分布存在偏枯或偏盛，需要进一步用结构修复。'] : ['基础命盘信息不足，无法准确判断五行失衡。'],
+        clashes: transitIncluded ? ['需结合流转观察刑冲是否放大原局问题。'] : ['当前未纳入流转冲克信息。'],
+        structuralBreaks: hasBazi ? ['重点检查关键修复元素是否缺位或被压制。'] : ['缺少可验证的结构链路。'],
+        primaryFailure: hasBazi ? '命盘的主要问题不在单纯强弱，而在结构失衡与关键修复链条不稳。' : '当前缺少完整盘，主要问题是无法建立可靠结构判断。',
+      },
+      rescue: {
+        rescuable: hasBazi,
+        rescueReason: hasBazi ? '命盘仍有可作为修复入口的元素，结构存在调整空间。' : '连基础结构都未确认，无法判断是否可救。',
+        candidateUsefulGods: usefulGods.primary,
+      },
+      capacity: {
+        dayMasterStrength: hasBazi ? 'balanced' : 'weak',
+        loadBearing: hasBazi ? '日主承载能力可作为辅助参考，但不能替代病药判断。' : '当前无法安全评估承载能力。',
+        note: hasBazi ? '身强身弱仅用于判断是否能承受用神。' : '建议先补盘再谈承载能力。',
+      },
+      usefulGods,
+      usefulGodEffectiveness: {
+        rooted: hasBazi,
+        constrained: false,
+        combinedAway: false,
+        sufficientForce: hasBazi,
+        effective: hasBazi,
+        reason: hasBazi ? '当前可把候选用神作为修复结构的主要抓手，但仍需结合原局根气与运势验证。' : '没有命盘就无法验证用神有效性。',
+      },
+      stability: {
+        level: hasBazi ? (transitIncluded ? 'semi_stable' : 'fragile') : 'fragile',
+        positiveLoops: hasBazi ? ['存在一定的结构修复回路，但还不够稳。'] : [],
+        weakPoints: hasBazi ? ['一旦关键修复元素被冲掉，整体结构容易失衡。'] : ['基础信息不足导致结构评估本身不稳定。'],
+      },
+      preferences: {
+        favorable: usefulGods.primary.concat(usefulGods.support).slice(0, 5),
+        unfavorable: hasBazi ? ['进一步放大失衡的元素', '直接冲断修复链条的元素'] : ['任何基于不完整盘的激进结论'],
+        rationale: '喜忌以系统是否更稳定为标准，而不是套用单一扶抑规则。',
+      },
+      failureMode: {
+        collapseTriggers: hasBazi ? ['关键修复元素被冲克', '原局失衡被大运进一步放大'] : ['在基础信息缺失下做强结论'],
+        collapseCondition: hasBazi ? '最怕运势继续放大原局病灶，同时没有修复元素承接。' : '最怕在缺盘情况下直接做强判断。',
+      },
+      luckFlow: {
+        effectType: transitIncluded ? 'mixed' : hasBazi ? 'repair' : 'amplify_failure',
+        evidence: transitIncluded ? ['当前流转会改变结构受力，需要动态观察。'] : ['当前只做静态结构判断。'],
+        summary: transitIncluded ? '当前运势既可能提供修复机会，也可能放大原局问题，要看是否引入真正有效的用神。' : hasBazi ? '当前更适合先看原局的修复空间，再判断运势是否协同。' : '没有完整命盘时，运势判断可靠度很低。',
+      },
+      finalSummary: {
+        coreProblem: hasBazi ? '这个命盘的核心问题是结构失衡与关键修复链条不够稳定。' : '当前最大的核心问题是缺少完整命盘，无法建立可靠结构判断。',
+        solution: hasBazi ? '仍有修复空间，关键是找到真正能修病的主用神并验证它是否有效。' : '先补全命盘与关键信息，再谈用神和稳定方案。',
+        trajectoryImpact: transitIncluded ? '运势会通过放大问题或提供修复入口来改变人生轨迹，关键看它是否真正引入有效用神。' : '在未纳入流转时，只能先做静态判断，动态轨迹还需要结合大运再看。',
       },
       confidence: hasBazi ? 0.72 : 0.46,
     };
@@ -206,17 +243,13 @@ export class RuleBasedModelProvider implements ModelProvider {
       try {
         const analysis = structuredAnalysisSchema.parse(JSON.parse(extractJsonObject(jsonText)));
         return [
-          `这次我先围绕“${analysis.questionSummary}”来回答。`,
+          analysis.finalSummary.coreProblem,
+          analysis.finalSummary.solution,
+          analysis.finalSummary.trajectoryImpact,
           '',
-          `重点主题：${analysis.analysis.coreThemes.join('、')}。`,
-          analysis.reasoningSummary.map((item, index) => `${index + 1}. ${item}`).join('\n'),
-          '',
-          analysis.analysis.timeWindows.length > 0
-            ? `时间节奏：${analysis.analysis.timeWindows.map((item) => `${item.label}（${item.signal}）${item.note}`).join('；')}`
-            : '时间节奏：先以近期稳步推进为主。',
-          '',
-          `建议：${analysis.analysis.advice.join('；')}`,
-          analysis.analysis.risks.length > 0 ? `提醒：${analysis.analysis.risks.join('；')}` : '',
+          `结构类型：${analysis.structureType.pattern}；系统稳定性：${analysis.stability.level}。`,
+          `主用神：${analysis.usefulGods.primary.join('、')}；辅助用神：${analysis.usefulGods.support.join('、') || '暂无'}。`,
+          `触发崩溃条件：${analysis.failureMode.collapseCondition}`,
         ]
           .filter(Boolean)
           .join('\n');

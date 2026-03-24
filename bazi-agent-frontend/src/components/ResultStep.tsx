@@ -1,6 +1,5 @@
 import type { NormalizedChartRich } from '../chartRich';
-import type { ChatResponse, TransitSnapshot } from '../types';
-import { AgentInsightSection } from './result/AgentInsightSection';
+import type { TransitSnapshot } from '../types';
 import { FiveElementsSection } from './result/FiveElementsSection';
 import { FortuneSection } from './result/FortuneSection';
 import { GodsSection } from './result/GodsSection';
@@ -12,11 +11,10 @@ export function ResultStep(props: {
   t: Record<string, string>;
   chart: NormalizedChartRich | null;
   transit: TransitSnapshot | null;
-  latestChat: ChatResponse | null;
   onEdit: () => void;
   onBack: () => void;
 }) {
-  const { t, chart, transit, latestChat, onEdit, onBack } = props;
+  const { t, chart, transit, onEdit, onBack } = props;
 
   if (!chart) {
     return (
@@ -76,8 +74,6 @@ export function ResultStep(props: {
         <PillarsSection title={t.panelPillars} pillars={chart.pillars} />
         <FiveElementsSection title={t.panelElements} data={chart.fiveElements} />
       </div>
-
-      <AgentInsightSection t={t} latestChat={latestChat} />
 
       <TransitSection t={t} transit={transit} />
 

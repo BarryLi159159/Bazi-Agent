@@ -8,17 +8,12 @@ export interface ChatMessage {
   created_at?: string;
 }
 
-export type ChatIntent = 'general' | 'career' | 'relationship' | 'wealth' | 'health' | 'study';
-export type AnalysisSignal = 'low' | 'medium' | 'high';
-
-export interface StructuredTimeWindow {
-  label: string;
-  signal: AnalysisSignal;
-  note: string;
-}
+export type StructurePattern = 'ordinary' | 'follow' | 'transform' | 'uncertain';
+export type DayMasterStrength = 'weak' | 'balanced' | 'strong';
+export type StabilityLevel = 'stable' | 'semi_stable' | 'fragile';
+export type LuckEffectType = 'repair' | 'amplify_failure' | 'collapse_trigger' | 'mixed';
 
 export interface StructuredAnalysis {
-  intent: ChatIntent;
   questionSummary: string;
   chartBasis: {
     hasBazi: boolean;
@@ -27,11 +22,64 @@ export interface StructuredAnalysis {
     transitGeneratedAt?: string;
   };
   reasoningSummary: string[];
-  analysis: {
-    coreThemes: string[];
-    timeWindows: StructuredTimeWindow[];
-    risks: string[];
-    advice: string[];
+  structureType: {
+    pattern: StructurePattern;
+    isExtreme: boolean;
+    extremeNote: string;
+    followAdjustment: string;
+  };
+  failure: {
+    fiveElementImbalance: string[];
+    clashes: string[];
+    structuralBreaks: string[];
+    primaryFailure: string;
+  };
+  rescue: {
+    rescuable: boolean;
+    rescueReason: string;
+    candidateUsefulGods: string[];
+  };
+  capacity: {
+    dayMasterStrength: DayMasterStrength;
+    loadBearing: string;
+    note: string;
+  };
+  usefulGods: {
+    primary: string[];
+    support: string[];
+    rationale: string;
+  };
+  usefulGodEffectiveness: {
+    rooted: boolean;
+    constrained: boolean;
+    combinedAway: boolean;
+    sufficientForce: boolean;
+    effective: boolean;
+    reason: string;
+  };
+  stability: {
+    level: StabilityLevel;
+    positiveLoops: string[];
+    weakPoints: string[];
+  };
+  preferences: {
+    favorable: string[];
+    unfavorable: string[];
+    rationale: string;
+  };
+  failureMode: {
+    collapseTriggers: string[];
+    collapseCondition: string;
+  };
+  luckFlow: {
+    effectType: LuckEffectType;
+    evidence: string[];
+    summary: string;
+  };
+  finalSummary: {
+    coreProblem: string;
+    solution: string;
+    trajectoryImpact: string;
   };
   confidence: number;
 }

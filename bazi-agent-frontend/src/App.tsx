@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { deleteApiKey, deleteSession, fetchApiKeyStatus, fetchCurrentTransit, fetchCurrentUser, fetchSessionMessages, fetchSessions, saveApiKey, sendChat } from './api';
+import { deleteApiKey, deleteSession, fetchApiKeyStatus, fetchCurrentTransit, fetchCurrentUser, fetchSessions, saveApiKey, sendChat } from './api';
 import { SettingsModal } from './components/SettingsModal';
 import { AuthPanel } from './components/AuthPanel';
 import { HeaderBar } from './components/HeaderBar';
@@ -10,7 +10,7 @@ import { ResultStep } from './components/ResultStep';
 import { normalizeChartRich } from './chartRich';
 import { getTexts, type Language } from './locales';
 import { isSupabaseConfigured, supabase } from './supabase';
-import type { ChatResponse, SessionSummary, StructuredAnalysis, TransitSnapshot, UserApiKeyStatus, UserProfileForm, UserRecord } from './types';
+import type { SessionSummary, TransitSnapshot, UserApiKeyStatus, UserProfileForm, UserRecord } from './types';
 
 const EMPTY_PROFILE: UserProfileForm = {
   displayName: '',
@@ -37,85 +37,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
-function readStructuredAnalysis(value: unknown): StructuredAnalysis | null {
-  const record = asRecord(value);
-  const analysis = asRecord(record?.['analysis']);
-  const chartBasis = asRecord(record?.['chartBasis']);
-  if (!record || !analysis || !chartBasis) {
-    return null;
-  }
-
-  const reasoningSummary = Array.isArray(record['reasoningSummary'])
-    ? record['reasoningSummary'].filter((item): item is string => typeof item === 'string')
-    : [];
-  const coreThemes = Array.isArray(analysis['coreThemes'])
-    ? analysis['coreThemes'].filter((item): item is string => typeof item === 'string')
-    : [];
-  const risks = Array.isArray(analysis['risks']) ? analysis['risks'].filter((item): item is string => typeof item === 'string') : [];
-  const advice = Array.isArray(analysis['advice']) ? analysis['advice'].filter((item): item is string => typeof item === 'string') : [];
-  const timeWindows = Array.isArray(analysis['timeWindows'])
-    ? analysis['timeWindows']
-        .map((item) => {
-          const row = asRecord(item);
-          if (!row || typeof row['label'] !== 'string' || typeof row['signal'] !== 'string' || typeof row['note'] !== 'string') {
-            return null;
-          }
-          return {
-            label: row['label'],
-            signal: row['signal'] as StructuredAnalysis['analysis']['timeWindows'][number]['signal'],
-            note: row['note'],
-          };
-        })
-        .filter((item): item is StructuredAnalysis['analysis']['timeWindows'][number] => item !== null)
-    : [];
-
-  if (typeof record['intent'] !== 'string' || typeof record['questionSummary'] !== 'string' || typeof record['confidence'] !== 'number') {
-    return null;
-  }
-
-  return {
-    intent: record['intent'] as StructuredAnalysis['intent'],
-    questionSummary: record['questionSummary'],
-    chartBasis: {
-      hasBazi: Boolean(chartBasis['hasBazi']),
-      baziSource: typeof chartBasis['baziSource'] === 'string' ? chartBasis['baziSource'] : undefined,
-      transitIncluded: Boolean(chartBasis['transitIncluded']),
-      transitGeneratedAt: typeof chartBasis['transitGeneratedAt'] === 'string' ? chartBasis['transitGeneratedAt'] : undefined,
-    },
-    reasoningSummary,
-    analysis: {
-      coreThemes,
-      timeWindows,
-      risks,
-      advice,
-    },
-    confidence: record['confidence'],
-  };
-}
-
-function readChatResponseFromMessage(value: unknown, messageContent: string, sessionId: string): ChatResponse | null {
-  const meta = asRecord(value);
-  const structured = readStructuredAnalysis(meta?.['structured']);
-  if (!meta || !structured) {
-    return null;
-  }
-
-  return {
-    userId: '',
-    sessionId,
-    assistantMessage: messageContent,
-    structured,
-    meta: {
-      modelProvider: typeof meta['modelProvider'] === 'string' ? meta['modelProvider'] : 'unknown',
-      usedFallback: Boolean(meta['usedFallback']),
-      baziComputed: Boolean(meta['baziComputed']),
-      baziSource: typeof meta['baziSource'] === 'string' ? meta['baziSource'] : undefined,
-    },
-    baziComputed: Boolean(meta['baziComputed']),
-    baziSource: typeof meta['baziSource'] === 'string' ? meta['baziSource'] : undefined,
-  };
-}
-
 export function App() {
   const [profile, setProfile] = useState<UserProfileForm>(EMPTY_PROFILE);
   const [language, setLanguage] = useState<Language>(() => readLanguage());
@@ -125,7 +46,6 @@ export function App() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [baziUser, setBaziUser] = useState<UserRecord | null>(null);
   const [transit, setTransit] = useState<TransitSnapshot | null>(null);
-  const [latestChat, setLatestChat] = useState<ChatResponse | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -188,7 +108,6 @@ export function App() {
       setSessions([]);
       setBaziUser(null);
       setTransit(null);
-      setLatestChat(null);
       setApiKeyStatus(null);
       setSettingsOpen(false);
       setStep('landing');
@@ -266,9 +185,6 @@ export function App() {
     }
     setError(null);
     try {
-      const history = await fetchSessionMessages(_sessionId, session.access_token);
-      const latestAssistant = [...history.messages].reverse().find((item) => item.role === 'assistant');
-      setLatestChat(latestAssistant ? readChatResponseFromMessage(latestAssistant.meta_json, latestAssistant.content, history.sessionId) : null);
       await refreshUser(session.access_token);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : t.loadFailed);
@@ -422,13 +338,12 @@ export function App() {
     setSending(true);
     try {
       const seedPrompt = language === 'zh' ? '请先根据我的出生信息排盘并做简短解读。' : 'Please generate the Bazi chart first with a brief interpretation.';
-      const response = await sendChat({
+      await sendChat({
         userProfile: profile,
         sessionId: undefined,
         message: seedPrompt,
         accessToken: session.access_token,
       });
-      setLatestChat(response);
       await refreshSessions(session.access_token);
       await refreshUser(session.access_token);
       setStep('result');
@@ -531,7 +446,6 @@ export function App() {
             t={t}
             chart={chartRich}
             transit={transit}
-            latestChat={latestChat}
             onEdit={() => setStep('input')}
             onBack={() => setStep('landing')}
           />

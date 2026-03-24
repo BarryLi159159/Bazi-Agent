@@ -18,21 +18,19 @@ export interface ModelMessage {
   content: string;
 }
 
-export const chatIntentSchema = z.enum(['general', 'career', 'relationship', 'wealth', 'health', 'study']);
-export type ChatIntent = z.infer<typeof chatIntentSchema>;
+export const structurePatternSchema = z.enum(['ordinary', 'follow', 'transform', 'uncertain']);
+export type StructurePattern = z.infer<typeof structurePatternSchema>;
 
-export const analysisSignalSchema = z.enum(['low', 'medium', 'high']);
-export type AnalysisSignal = z.infer<typeof analysisSignalSchema>;
+export const dayMasterStrengthSchema = z.enum(['weak', 'balanced', 'strong']);
+export type DayMasterStrength = z.infer<typeof dayMasterStrengthSchema>;
 
-export const structuredTimeWindowSchema = z.object({
-  label: z.string().min(1).max(40),
-  signal: analysisSignalSchema,
-  note: z.string().min(1).max(200),
-});
-export type StructuredTimeWindow = z.infer<typeof structuredTimeWindowSchema>;
+export const stabilityLevelSchema = z.enum(['stable', 'semi_stable', 'fragile']);
+export type StabilityLevel = z.infer<typeof stabilityLevelSchema>;
+
+export const luckEffectTypeSchema = z.enum(['repair', 'amplify_failure', 'collapse_trigger', 'mixed']);
+export type LuckEffectType = z.infer<typeof luckEffectTypeSchema>;
 
 export const structuredAnalysisSchema = z.object({
-  intent: chatIntentSchema,
   questionSummary: z.string().min(1).max(200),
   chartBasis: z.object({
     hasBazi: z.boolean(),
@@ -41,11 +39,64 @@ export const structuredAnalysisSchema = z.object({
     transitGeneratedAt: z.string().optional(),
   }),
   reasoningSummary: z.array(z.string().min(1).max(120)).min(1).max(4),
-  analysis: z.object({
-    coreThemes: z.array(z.string().min(1).max(40)).min(1).max(4),
-    timeWindows: z.array(structuredTimeWindowSchema).max(4),
-    risks: z.array(z.string().min(1).max(120)).max(4),
-    advice: z.array(z.string().min(1).max(160)).min(1).max(5),
+  structureType: z.object({
+    pattern: structurePatternSchema,
+    isExtreme: z.boolean(),
+    extremeNote: z.string().min(1).max(200),
+    followAdjustment: z.string().min(1).max(200),
+  }),
+  failure: z.object({
+    fiveElementImbalance: z.array(z.string().min(1).max(80)).max(5),
+    clashes: z.array(z.string().min(1).max(120)).max(6),
+    structuralBreaks: z.array(z.string().min(1).max(120)).max(6),
+    primaryFailure: z.string().min(1).max(240),
+  }),
+  rescue: z.object({
+    rescuable: z.boolean(),
+    rescueReason: z.string().min(1).max(240),
+    candidateUsefulGods: z.array(z.string().min(1).max(30)).max(5),
+  }),
+  capacity: z.object({
+    dayMasterStrength: dayMasterStrengthSchema,
+    loadBearing: z.string().min(1).max(200),
+    note: z.string().min(1).max(200),
+  }),
+  usefulGods: z.object({
+    primary: z.array(z.string().min(1).max(30)).min(1).max(4),
+    support: z.array(z.string().min(1).max(30)).max(4),
+    rationale: z.string().min(1).max(240),
+  }),
+  usefulGodEffectiveness: z.object({
+    rooted: z.boolean(),
+    constrained: z.boolean(),
+    combinedAway: z.boolean(),
+    sufficientForce: z.boolean(),
+    effective: z.boolean(),
+    reason: z.string().min(1).max(240),
+  }),
+  stability: z.object({
+    level: stabilityLevelSchema,
+    positiveLoops: z.array(z.string().min(1).max(120)).max(5),
+    weakPoints: z.array(z.string().min(1).max(120)).max(5),
+  }),
+  preferences: z.object({
+    favorable: z.array(z.string().min(1).max(30)).max(5),
+    unfavorable: z.array(z.string().min(1).max(30)).max(5),
+    rationale: z.string().min(1).max(240),
+  }),
+  failureMode: z.object({
+    collapseTriggers: z.array(z.string().min(1).max(120)).max(5),
+    collapseCondition: z.string().min(1).max(240),
+  }),
+  luckFlow: z.object({
+    effectType: luckEffectTypeSchema,
+    evidence: z.array(z.string().min(1).max(120)).max(5),
+    summary: z.string().min(1).max(240),
+  }),
+  finalSummary: z.object({
+    coreProblem: z.string().min(1).max(180),
+    solution: z.string().min(1).max(180),
+    trajectoryImpact: z.string().min(1).max(180),
   }),
   confidence: z.number().min(0).max(1),
 });

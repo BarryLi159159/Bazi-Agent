@@ -24,23 +24,67 @@ function summarizeBazi(bazi: unknown): string {
   }
 
   if (isRecord(bazi)) {
-    const eight = pickStringField(bazi, '八字');
-    const zodiac = pickStringField(bazi, '生肖');
-    const dayMaster = pickStringField(bazi, '日主');
-    const solar = pickStringField(bazi, '阳历');
+    const chart = isRecord(bazi['chart_rich']) ? bazi['chart_rich'] : null;
+    const basic = isRecord(chart?.['basic']) ? chart?.['basic'] : null;
+    const pillars = isRecord(chart?.['pillars']) ? chart?.['pillars'] : null;
+    const fiveElements = isRecord(chart?.['fiveElements']) ? chart?.['fiveElements'] : null;
+    const fortune = isRecord(chart?.['fortune']) ? chart?.['fortune'] : null;
+    const relations = isRecord(chart?.['relations']) ? chart?.['relations'] : null;
+
+    const pillarSummary = pillars
+      ? ['year', 'month', 'day', 'hour']
+          .map((slot) => {
+            const pillar = isRecord(pillars[slot]) ? pillars[slot] : null;
+            const stem = isRecord(pillar?.['stem']) ? pillar?.['stem'] : null;
+            const branch = isRecord(pillar?.['branch']) ? pillar?.['branch'] : null;
+            const text = `${pickStringField(stem ?? {}, 'text') ?? ''}${pickStringField(branch ?? {}, 'text') ?? ''}`.trim();
+            return text ? `${slot}:${text}` : '';
+          })
+          .filter(Boolean)
+          .join(' | ')
+      : '';
+
+    const fiveElementSummary = fiveElements
+      ? ['metal', 'wood', 'water', 'fire', 'earth']
+          .map((key) => `${key}:${String(fiveElements[key] ?? '-')}`)
+          .join(' | ')
+      : '';
+
+    const decades = Array.isArray(fortune?.['decades']) ? fortune?.['decades'] : [];
+    const decadeSummary = decades
+      .slice(0, 6)
+      .map((item) => {
+        if (!isRecord(item)) {
+          return '';
+        }
+        const ganZhi = pickStringField(item, 'ganZhi');
+        const startAge = item['startAge'];
+        const cycleState = pickStringField(item, 'cycleState');
+        return [ganZhi, startAge !== undefined && startAge !== null ? `age:${String(startAge)}` : '', cycleState].filter(Boolean).join(' ');
+      })
+      .filter(Boolean)
+      .join(' | ');
+
+    const relationHighlights = Array.isArray(relations?.['highlights'])
+      ? relations?.['highlights'].filter((item): item is string => typeof item === 'string').slice(0, 6).join(' | ')
+      : '';
 
     const lines = [
-      eight ? `八字：${eight}` : undefined,
-      zodiac ? `生肖：${zodiac}` : undefined,
-      dayMaster ? `日主：${dayMaster}` : undefined,
-      solar ? `出生阳历：${solar}` : undefined,
+      basic ? `八字：${pickStringField(basic, 'bazi') ?? '未提供'}` : pickStringField(bazi, '八字'),
+      basic ? `生肖：${pickStringField(basic, 'zodiac') ?? '未提供'}` : pickStringField(bazi, '生肖'),
+      basic ? `日主：${pickStringField(basic, 'dayMaster') ?? '未提供'}` : pickStringField(bazi, '日主'),
+      basic ? `出生阳历：${pickStringField(basic, 'solar') ?? '未提供'}` : pickStringField(bazi, '阳历'),
+      pillarSummary ? `四柱：${pillarSummary}` : undefined,
+      fiveElementSummary ? `五行统计：${fiveElementSummary}` : undefined,
+      decadeSummary ? `大运：${decadeSummary}` : undefined,
+      relationHighlights ? `刑冲合会：${relationHighlights}` : undefined,
     ].filter((line): line is string => Boolean(line));
 
     if (lines.length > 0) {
       return lines.join('\n');
     }
 
-    return `八字结构化信息：${JSON.stringify(bazi).slice(0, 700)}`;
+    return `八字结构化信息：${JSON.stringify(bazi).slice(0, 1200)}`;
   }
 
   return `八字信息：${String(bazi)}`;
@@ -142,26 +186,31 @@ export function buildAnalysisSystemPrompt(params: {
 }): string {
   return [
     '你是一个中文八字咨询分析助手。',
-    '你的任务不是直接和用户闲聊，而是先把本轮问题整理成结构化分析。',
-    '必须优先围绕用户这一轮真实问题，不要泛泛而谈。',
-    '可以参考用户资料、长期记忆、八字信息、当前流转信息，但不要编造未提供的事实。',
+    '你的任务不是直接输出散文，而是先按固定八字诊断 pipeline 输出一个合法 JSON。',
+    '核心方法是“系统结构 + 问题修复”，不是只看身强身弱。',
+    '必须优先参考八字 engine 已给出的结构化数据，不要凭空编造传统术语。',
+    '如果证据不足，可以保守判断，并在对应字段里说明。',
     '不要输出完整内部推理，只输出简短 reasoningSummary。',
     '所有输出必须是一个合法 JSON 对象，不能出现 Markdown 代码块，不能出现 JSON 以外的任何文字。',
+    '请严格按照以下步骤完成：',
+    'Step 0 结构类型识别：ordinary / follow / transform / uncertain，并判断是否极端结构。',
+    'Step 1 找病：五行严重失衡、刑冲破坏、结构断裂，并给出 primaryFailure。',
+    'Step 2 判断是否可救：是否存在修复元素、结构是否具备修复空间。',
+    'Step 3 身强身弱：只作为承载能力辅助判断，不能推翻前面病灶判断。',
+    'Step 4 找药：主用神和辅助用神必须以“解决问题”为目标，不是套公式。',
+    'Step 5 验证药效：检查是否有根、是否被克、被合走、力量是否足够。',
+    'Step 6 结构稳定性：稳定 / semi_stable / fragile，并指出循环支持与漏洞。',
+    'Step 7 喜忌：以系统稳定为标准，而非个人偏好。',
+    'Step 8 致命点：指出最怕什么、在什么条件下崩溃。',
+    'Step 9 大运分析：判断当前整体运势作用类型是 repair / amplify_failure / collapse_trigger / mixed。',
     'JSON 字段要求：',
-    '- intent: general/career/relationship/wealth/health/study 之一',
     '- questionSummary: 用一句话概括用户本轮真正想问什么',
-    '- chartBasis.hasBazi: 是否有八字信息',
-    '- chartBasis.baziSource: 若未知可省略',
-    '- chartBasis.transitIncluded: 是否纳入流转信息',
-    '- chartBasis.transitGeneratedAt: 若有则填写',
-    '- reasoningSummary: 1到4条简短步骤，每条不超过120字',
-    '- analysis.coreThemes: 1到4个关键词',
-    '- analysis.timeWindows: 0到4项，每项包含 label/signal/note',
-    '- analysis.risks: 0到4条风险提醒',
-    '- analysis.advice: 1到5条可执行建议',
-    '- confidence: 0到1之间的小数',
+    '- chartBasis: 说明是否有八字、来源、是否纳入流转',
+    '- reasoningSummary: 1到4条极简步骤摘要',
+    '- structureType / failure / rescue / capacity / usefulGods / usefulGodEffectiveness / stability / preferences / failureMode / luckFlow / finalSummary / confidence 必须全部输出',
+    '- finalSummary 必须对应三句话：核心问题、解决方案、运势影响',
     '',
-    '输出风格：稳健、克制、可执行，不要夸张，不要宿命论。',
+    '输出风格：稳健、克制、以结构证据为先，不要夸张，不要宿命论。',
     '',
     buildSharedContext(params),
   ].join('\n');
@@ -172,13 +221,13 @@ export function buildAnswerSystemPrompt(params: {
   analysis: StructuredAnalysis;
 }): string {
   return [
-    '你是一个中文八字咨询助手，负责把结构化分析写成用户能直接读懂的最终回答。',
+    '你是一个中文八字咨询助手，负责把结构化诊断结果写成用户能直接读懂的结论。',
     '不要泄露完整内部推理，只允许参考 reasoningSummary 做极简说明。',
     '回答要求：',
-    '1. 先直接回应用户问题，给出结论。',
-    '2. 再用 2 到 3 段解释主要判断依据。',
-    '3. 最后给 2 到 4 条可执行建议。',
-    '4. 如果 analysis.risks 不为空，要自然加入风险提醒。',
+    '1. 先用一句话说核心问题。',
+    '2. 再用一句话说是否可救、主用神与稳定方案。',
+    '3. 再用一句话说大运或当前运势如何影响整体轨迹。',
+    '4. 若有必要，可在最后补 2 到 3 条行动建议，但整体不要太长。',
     '5. 语气专业、清晰、克制，不要说“根据系统提示”。',
     '',
     `用户显示名：${params.user.display_name ?? '未提供'}`,
