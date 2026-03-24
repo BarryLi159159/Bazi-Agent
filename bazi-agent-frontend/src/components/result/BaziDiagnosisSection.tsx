@@ -117,18 +117,20 @@ export function BaziDiagnosisSection(props: {
   analysis: StructuredAnalysis | null;
   assistantMessage: string | null;
   chatMeta: ChatResponseMeta | null;
+  exportJson: Record<string, unknown> | null;
 }) {
-  const { t, analysis, assistantMessage, chatMeta } = props;
+  const { t, analysis, assistantMessage, chatMeta, exportJson } = props;
   const usedFallback = chatMeta?.usedFallback ?? false;
   const providerName = chatMeta?.modelProvider ?? null;
   const fallbackReason = fallbackReasonLabel(chatMeta, t);
   const [copied, setCopied] = useState(false);
 
   async function handleCopyJson() {
-    if (!analysis) {
+    const payload = exportJson ?? analysis;
+    if (!payload) {
       return;
     }
-    await navigator.clipboard.writeText(JSON.stringify(analysis, null, 2));
+    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   }
@@ -164,7 +166,7 @@ export function BaziDiagnosisSection(props: {
               {copied ? (t.diagnosisJsonCopied ?? '已复制') : (t.diagnosisCopyJson ?? '复制 JSON')}
             </button>
           </div>
-          <pre className="diagnosis-json-block">{JSON.stringify(analysis, null, 2)}</pre>
+          <pre className="diagnosis-json-block">{JSON.stringify(exportJson ?? analysis, null, 2)}</pre>
         </div>
       ) : (
         <>

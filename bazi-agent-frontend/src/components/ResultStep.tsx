@@ -17,6 +17,7 @@ export function ResultStep(props: {
   structuredAnalysis: StructuredAnalysis | null;
   assistantMessage: string | null;
   chatMeta: ChatResponseMeta | null;
+  exportJson: Record<string, unknown> | null;
   hasApiKey: boolean;
   chatMessages: ChatMessage[];
   chatDraft: string;
@@ -27,7 +28,7 @@ export function ResultStep(props: {
   onEdit: () => void;
   onBack: () => void;
 }) {
-  const { t, chart, transit, structuredAnalysis, assistantMessage, chatMeta, hasApiKey, chatMessages, chatDraft, chatSending, onChatDraftChange, onChatSubmit, onOpenSettings, onEdit, onBack } = props;
+  const { t, chart, transit, structuredAnalysis, assistantMessage, chatMeta, exportJson, hasApiKey, chatMessages, chatDraft, chatSending, onChatDraftChange, onChatSubmit, onOpenSettings, onEdit, onBack } = props;
   const [activeView, setActiveView] = useState<'chart' | 'ai'>('chart');
 
   if (!chart) {
@@ -122,7 +123,7 @@ export function ResultStep(props: {
         </>
       ) : hasApiKey ? (
         <>
-          <BaziDiagnosisSection t={t} analysis={structuredAnalysis} assistantMessage={assistantMessage} chatMeta={chatMeta} />
+          <BaziDiagnosisSection t={t} analysis={structuredAnalysis} assistantMessage={assistantMessage} chatMeta={chatMeta} exportJson={exportJson} />
 
           <ResultChatSection
             t={t}

@@ -111,6 +111,71 @@ function resolveStoredBaziInputFromUser(input: BaziInput | undefined, user: { bi
   };
 }
 
+function buildExportJsonPayload(params: {
+  user: {
+    display_name: string | null;
+    gender: number | null;
+    birth_solar_datetime: string | null;
+    birth_lunar_datetime: string | null;
+    profile_json: Record<string, unknown>;
+    bazi_json: unknown;
+  };
+  structured: StructuredAnalysis;
+  transit: unknown;
+  userMessage: string;
+  analysisSystemPrompt: string;
+  answerSystemPrompt: string;
+}): Record<string, unknown> {
+  const profile = isRecord(params.user.profile_json) ? params.user.profile_json : {};
+  const bazi = isRecord(params.user.bazi_json) ? params.user.bazi_json : null;
+  const chartRich = isRecord(bazi?.['chart_rich']) ? bazi['chart_rich'] : null;
+  const relations = isRecord(chartRich?.['relations']) ? chartRich['relations'] : null;
+  const fortune = isRecord(chartRich?.['fortune']) ? chartRich['fortune'] : null;
+
+  return {
+    pipeline: params.structured,
+    profile: {
+      displayName: params.user.display_name,
+      gender: params.user.gender,
+      birthSolarDatetime: params.user.birth_solar_datetime,
+      birthLunarDatetime: params.user.birth_lunar_datetime,
+      birthLocation: profile['birthLocation'] ?? null,
+      currentAge: profile['currentAge'] ?? null,
+      currentYear: profile['currentYear'] ?? null,
+      chartValidationRecords: profile['chartValidationRecords'] ?? [],
+    },
+    chart: chartRich
+      ? {
+          source: chartRich['source'] ?? null,
+          provider: chartRich['provider'] ?? null,
+          generatedAt: chartRich['generatedAt'] ?? null,
+          basic: chartRich['basic'] ?? null,
+          pillars: chartRich['pillars'] ?? null,
+          fiveElements: chartRich['fiveElements'] ?? null,
+          gods: chartRich['gods'] ?? null,
+          relations: {
+            highlights: relations?.['highlights'] ?? [],
+            raw: relations?.['raw'] ?? null,
+          },
+        }
+      : null,
+    fortune: fortune
+      ? {
+          startDate: fortune['startDate'] ?? null,
+          startAge: fortune['startAge'] ?? null,
+          list: fortune['list'] ?? [],
+          decades: fortune['decades'] ?? [],
+        }
+      : null,
+    transit: params.transit ?? null,
+    prompt: {
+      userQuestion: params.userMessage,
+      analysisSystemPrompt: params.analysisSystemPrompt,
+      answerSystemPrompt: params.answerSystemPrompt,
+    },
+  };
+}
+
 function summarizeModelFailure(error: unknown): {
   fallbackErrorCode?: string;
   fallbackErrorMessage?: string;
@@ -272,6 +337,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
   let usedModelName = modelProvider.name;
   let usedFallback = false;
   let fallbackDetails: { fallbackErrorCode?: string; fallbackErrorMessage?: string } = {};
+  let answerSystemPrompt = '';
 
   try {
     structured = enrichStructuredAnalysis(await modelProvider.generateStructuredAnalysis(analysisMessages), {
@@ -279,8 +345,9 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
       baziSource: baziSource ?? extractStoredBaziSource(activeUser.bazi_json),
       transitGeneratedAt: transit?.generatedAt,
     });
+    answerSystemPrompt = buildAnswerSystemPrompt({ user: activeUser, analysis: structured });
     assistantMessage = await modelProvider.generateReply([
-      { role: 'system', content: buildAnswerSystemPrompt({ user: activeUser, analysis: structured }) },
+      { role: 'system', content: answerSystemPrompt },
       { role: 'user', content: input.message },
     ]);
   } catch (error) {
@@ -292,13 +359,23 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
       baziSource: baziSource ?? extractStoredBaziSource(activeUser.bazi_json),
       transitGeneratedAt: transit?.generatedAt,
     });
+    answerSystemPrompt = buildAnswerSystemPrompt({ user: activeUser, analysis: structured });
     assistantMessage = await fallback.generateReply([
-      { role: 'system', content: buildAnswerSystemPrompt({ user: activeUser, analysis: structured }) },
+      { role: 'system', content: answerSystemPrompt },
       { role: 'user', content: input.message },
     ]);
     usedModelName = fallback.name;
     usedFallback = true;
   }
+
+  const exportJson = buildExportJsonPayload({
+    user: activeUser,
+    structured,
+    transit,
+    userMessage: input.message,
+    analysisSystemPrompt,
+    answerSystemPrompt,
+  });
 
   await createMessage({
     sessionId: session.id,
@@ -311,6 +388,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
       baziSource,
       baziComputed,
       structured,
+      exportJson,
       transitGeneratedAt: transit?.generatedAt ?? null,
       fallbackErrorCode: fallbackDetails.fallbackErrorCode ?? null,
       fallbackErrorMessage: fallbackDetails.fallbackErrorMessage ?? null,

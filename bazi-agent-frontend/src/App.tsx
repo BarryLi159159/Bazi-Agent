@@ -37,6 +37,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
+function readExportJson(value: unknown): Record<string, unknown> | null {
+  return asRecord(value);
+}
+
 function readStructuredAnalysis(value: unknown): StructuredAnalysis | null {
   const record = asRecord(value);
   if (!record) {
@@ -80,9 +84,11 @@ function extractLatestStructuredResult(messages: ChatMessage[]): {
   assistantMessage: string | null;
   structured: StructuredAnalysis | null;
   meta: ChatResponseMeta | null;
+  exportJson: Record<string, unknown> | null;
 } {
   let fallbackAssistantMessage: string | null = null;
   let fallbackMeta: ChatResponseMeta | null = null;
+  let fallbackExportJson: Record<string, unknown> | null = null;
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
@@ -93,12 +99,14 @@ function extractLatestStructuredResult(messages: ChatMessage[]): {
     fallbackAssistantMessage ??= message.content;
     const meta = asRecord(message.meta_json);
     fallbackMeta ??= readChatResponseMeta(meta);
+    fallbackExportJson ??= readExportJson(meta?.exportJson);
     const structured = readStructuredAnalysis(meta?.structured);
     if (structured) {
       return {
         assistantMessage: message.content,
         structured,
         meta: readChatResponseMeta(meta),
+        exportJson: readExportJson(meta?.exportJson),
       };
     }
   }
@@ -107,6 +115,7 @@ function extractLatestStructuredResult(messages: ChatMessage[]): {
     assistantMessage: fallbackAssistantMessage,
     structured: null,
     meta: fallbackMeta,
+    exportJson: fallbackExportJson,
   };
 }
 
@@ -122,6 +131,7 @@ export function App() {
   const [latestStructured, setLatestStructured] = useState<StructuredAnalysis | null>(null);
   const [latestAssistantMessage, setLatestAssistantMessage] = useState<string | null>(null);
   const [latestChatMeta, setLatestChatMeta] = useState<ChatResponseMeta | null>(null);
+  const [latestExportJson, setLatestExportJson] = useState<Record<string, unknown> | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatDraft, setChatDraft] = useState('');
@@ -191,6 +201,7 @@ export function App() {
       setLatestStructured(null);
       setLatestAssistantMessage(null);
       setLatestChatMeta(null);
+      setLatestExportJson(null);
       setActiveSessionId(null);
       setChatMessages([]);
       setChatDraft('');
@@ -291,6 +302,7 @@ export function App() {
     setLatestStructured(restored.structured);
     setLatestAssistantMessage(restored.assistantMessage);
     setLatestChatMeta(restored.meta);
+    setLatestExportJson(restored.exportJson);
   }
 
   async function openSessionFromHistory(_sessionId: string) {
@@ -372,6 +384,7 @@ export function App() {
     setLatestStructured(null);
     setLatestAssistantMessage(null);
     setLatestChatMeta(null);
+    setLatestExportJson(null);
     setActiveSessionId(null);
     setChatMessages([]);
     setChatDraft('');
@@ -603,6 +616,7 @@ export function App() {
             structuredAnalysis={latestStructured}
             assistantMessage={latestAssistantMessage}
             chatMeta={latestChatMeta}
+            exportJson={latestExportJson}
             hasApiKey={Boolean(apiKeyStatus?.hasKey)}
             chatMessages={chatMessages}
             chatDraft={chatDraft}
