@@ -1118,6 +1118,46 @@ textarea {
   gap: 8px;
 }
 
+.diagnosis-fallback-json-wrap {
+  display: grid;
+  gap: 12px;
+}
+
+.diagnosis-fallback-note {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.diagnosis-fallback-note p {
+  margin: 0;
+  color: #5b6474;
+  line-height: 1.6;
+  flex: 1;
+  min-width: 220px;
+}
+
+.diagnosis-copy-btn {
+  flex-shrink: 0;
+}
+
+.diagnosis-json-block {
+  margin: 0;
+  border: 1px solid #e6eaf2;
+  border-radius: 16px;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 16px;
+  max-height: 520px;
+  overflow: auto;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .diagnosis-lead-card {
   border: 1px solid #e6eaf3;
   border-radius: 16px;

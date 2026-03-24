@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ChatResponseMeta, StructuredAnalysis } from '../../types';
 
 function joinItems(items: string[]): string {
@@ -101,6 +102,16 @@ export function BaziDiagnosisSection(props: {
   const { t, analysis, assistantMessage, chatMeta } = props;
   const usedFallback = chatMeta?.usedFallback ?? false;
   const providerName = chatMeta?.modelProvider ?? null;
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopyJson() {
+    if (!analysis) {
+      return;
+    }
+    await navigator.clipboard.writeText(JSON.stringify(analysis, null, 2));
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  }
 
   return (
     <section className="panel diagnosis-panel">
@@ -121,6 +132,16 @@ export function BaziDiagnosisSection(props: {
         <div className="diagnosis-placeholder">
           {assistantMessage ? <p className="diagnosis-lead">{assistantMessage}</p> : null}
           <p className="muted">{t.diagnosisFallback ?? '本次结果还没有可展示的结构化诊断。'}</p>
+        </div>
+      ) : usedFallback ? (
+        <div className="diagnosis-fallback-json-wrap">
+          <div className="diagnosis-fallback-note">
+            <p>{t.diagnosisFallbackJsonHint ?? '当前是 fallback 模式，所以这里直接展示结构化 JSON，方便你核对和复制。'}</p>
+            <button type="button" className="ghost-btn diagnosis-copy-btn" onClick={() => void handleCopyJson()}>
+              {copied ? (t.diagnosisJsonCopied ?? '已复制') : (t.diagnosisCopyJson ?? '复制 JSON')}
+            </button>
+          </div>
+          <pre className="diagnosis-json-block">{JSON.stringify(analysis, null, 2)}</pre>
         </div>
       ) : (
         <>
