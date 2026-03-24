@@ -107,6 +107,8 @@ export interface ChatResponseMeta {
   usedFallback: boolean;
   baziComputed: boolean;
   baziSource?: string | undefined;
+  fallbackErrorCode?: string | undefined;
+  fallbackErrorMessage?: string | undefined;
 }
 
 export interface ModelProvider {

@@ -89,6 +89,8 @@ export interface ChatResponseMeta {
   usedFallback: boolean;
   baziComputed: boolean;
   baziSource?: string;
+  fallbackErrorCode?: string;
+  fallbackErrorMessage?: string;
 }
 
 export interface ChatResponse {

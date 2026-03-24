@@ -71,6 +71,8 @@ function readChatResponseMeta(value: unknown): ChatResponseMeta | null {
     usedFallback: record.usedFallback,
     baziComputed: record.baziComputed,
     baziSource: typeof record.baziSource === 'string' ? record.baziSource : undefined,
+    fallbackErrorCode: typeof record.fallbackErrorCode === 'string' ? record.fallbackErrorCode : undefined,
+    fallbackErrorMessage: typeof record.fallbackErrorMessage === 'string' ? record.fallbackErrorMessage : undefined,
   };
 }
 

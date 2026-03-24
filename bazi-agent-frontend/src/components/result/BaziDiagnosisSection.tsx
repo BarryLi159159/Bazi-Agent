@@ -93,6 +93,25 @@ function renderBulletList(items: string[], emptyLabel: string) {
   );
 }
 
+function fallbackReasonLabel(meta: ChatResponseMeta | null, t: Record<string, string>): string | null {
+  const code = meta?.fallbackErrorCode;
+  if (!code) {
+    return meta?.fallbackErrorMessage ?? null;
+  }
+
+  switch (code) {
+    case 'insufficient_quota':
+      return t.diagnosisFallbackQuota ?? 'quota exceeded';
+    case 'invalid_api_key':
+    case 'auth_error':
+      return t.diagnosisFallbackAuth ?? 'auth failed';
+    case 'rate_limit':
+      return t.diagnosisFallbackRateLimit ?? 'rate limit reached';
+    default:
+      return meta?.fallbackErrorMessage ?? code;
+  }
+}
+
 export function BaziDiagnosisSection(props: {
   t: Record<string, string>;
   analysis: StructuredAnalysis | null;
@@ -102,6 +121,7 @@ export function BaziDiagnosisSection(props: {
   const { t, analysis, assistantMessage, chatMeta } = props;
   const usedFallback = chatMeta?.usedFallback ?? false;
   const providerName = chatMeta?.modelProvider ?? null;
+  const fallbackReason = fallbackReasonLabel(chatMeta, t);
   const [copied, setCopied] = useState(false);
 
   async function handleCopyJson() {
@@ -136,7 +156,10 @@ export function BaziDiagnosisSection(props: {
       ) : usedFallback ? (
         <div className="diagnosis-fallback-json-wrap">
           <div className="diagnosis-fallback-note">
-            <p>{t.diagnosisFallbackJsonHint ?? '当前是 fallback 模式，所以这里直接展示结构化 JSON，方便你核对和复制。'}</p>
+            <div className="diagnosis-fallback-copy">
+              <p>{t.diagnosisFallbackJsonHint ?? '当前是 fallback 模式，所以这里直接展示结构化 JSON，方便你核对和复制。'}</p>
+              {fallbackReason ? <div className="diagnosis-fallback-reason">{fallbackReason}</div> : null}
+            </div>
             <button type="button" className="ghost-btn diagnosis-copy-btn" onClick={() => void handleCopyJson()}>
               {copied ? (t.diagnosisJsonCopied ?? '已复制') : (t.diagnosisCopyJson ?? '复制 JSON')}
             </button>

@@ -111,6 +111,47 @@ function resolveStoredBaziInputFromUser(input: BaziInput | undefined, user: { bi
   };
 }
 
+function summarizeModelFailure(error: unknown): {
+  fallbackErrorCode?: string;
+  fallbackErrorMessage?: string;
+} {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes('insufficient_quota')) {
+    return {
+      fallbackErrorCode: 'insufficient_quota',
+      fallbackErrorMessage: 'quota exceeded',
+    };
+  }
+
+  if (normalized.includes('invalid_api_key') || normalized.includes('incorrect api key')) {
+    return {
+      fallbackErrorCode: 'invalid_api_key',
+      fallbackErrorMessage: 'auth failed',
+    };
+  }
+
+  if (normalized.includes('authentication') || normalized.includes('unauthorized') || normalized.includes('401')) {
+    return {
+      fallbackErrorCode: 'auth_error',
+      fallbackErrorMessage: 'auth failed',
+    };
+  }
+
+  if (normalized.includes('429')) {
+    return {
+      fallbackErrorCode: 'rate_limit',
+      fallbackErrorMessage: 'rate limit reached',
+    };
+  }
+
+  return {
+    fallbackErrorCode: 'provider_error',
+    fallbackErrorMessage: message.slice(0, 200),
+  };
+}
+
 export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatResult> {
   const user = await upsertUser({
     externalId: input.userExternalId,
@@ -230,6 +271,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
   let structured: StructuredAnalysis;
   let usedModelName = modelProvider.name;
   let usedFallback = false;
+  let fallbackDetails: { fallbackErrorCode?: string; fallbackErrorMessage?: string } = {};
 
   try {
     structured = enrichStructuredAnalysis(await modelProvider.generateStructuredAnalysis(analysisMessages), {
@@ -243,6 +285,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     ]);
   } catch (error) {
     console.warn(`[ModelProvider] ${modelProvider.name} failed, fallback to rules`, error);
+    fallbackDetails = summarizeModelFailure(error);
     const fallback = new RuleBasedModelProvider();
     structured = enrichStructuredAnalysis(await fallback.generateStructuredAnalysis(analysisMessages), {
       hasBazi: Boolean(activeUser.bazi_json),
@@ -269,6 +312,8 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
       baziComputed,
       structured,
       transitGeneratedAt: transit?.generatedAt ?? null,
+      fallbackErrorCode: fallbackDetails.fallbackErrorCode ?? null,
+      fallbackErrorMessage: fallbackDetails.fallbackErrorMessage ?? null,
     },
   });
 
@@ -284,6 +329,8 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
       usedFallback,
       baziComputed,
       baziSource,
+      fallbackErrorCode: fallbackDetails.fallbackErrorCode,
+      fallbackErrorMessage: fallbackDetails.fallbackErrorMessage,
     },
     baziComputed,
     baziSource,
