@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { NormalizedChartRich } from '../chartRich';
-import type { ChatMessage, StructuredAnalysis, TransitSnapshot } from '../types';
+import type { ChatMessage, ChatResponseMeta, StructuredAnalysis, TransitSnapshot } from '../types';
 import { BaziDiagnosisSection } from './result/BaziDiagnosisSection';
 import { FiveElementsSection } from './result/FiveElementsSection';
 import { FortuneSection } from './result/FortuneSection';
@@ -16,6 +16,7 @@ export function ResultStep(props: {
   transit: TransitSnapshot | null;
   structuredAnalysis: StructuredAnalysis | null;
   assistantMessage: string | null;
+  chatMeta: ChatResponseMeta | null;
   hasApiKey: boolean;
   chatMessages: ChatMessage[];
   chatDraft: string;
@@ -26,7 +27,7 @@ export function ResultStep(props: {
   onEdit: () => void;
   onBack: () => void;
 }) {
-  const { t, chart, transit, structuredAnalysis, assistantMessage, hasApiKey, chatMessages, chatDraft, chatSending, onChatDraftChange, onChatSubmit, onOpenSettings, onEdit, onBack } = props;
+  const { t, chart, transit, structuredAnalysis, assistantMessage, chatMeta, hasApiKey, chatMessages, chatDraft, chatSending, onChatDraftChange, onChatSubmit, onOpenSettings, onEdit, onBack } = props;
   const [activeView, setActiveView] = useState<'chart' | 'ai'>('chart');
 
   if (!chart) {
@@ -121,7 +122,7 @@ export function ResultStep(props: {
         </>
       ) : hasApiKey ? (
         <>
-          <BaziDiagnosisSection t={t} analysis={structuredAnalysis} assistantMessage={assistantMessage} />
+          <BaziDiagnosisSection t={t} analysis={structuredAnalysis} assistantMessage={assistantMessage} chatMeta={chatMeta} />
 
           <ResultChatSection
             t={t}

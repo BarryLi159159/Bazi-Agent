@@ -10,7 +10,7 @@ import { ResultStep } from './components/ResultStep';
 import { normalizeChartRich } from './chartRich';
 import { getTexts, type Language } from './locales';
 import { isSupabaseConfigured, supabase } from './supabase';
-import type { ChatMessage, SessionSummary, StructuredAnalysis, TransitSnapshot, UserApiKeyStatus, UserProfileForm, UserRecord } from './types';
+import type { ChatMessage, ChatResponseMeta, SessionSummary, StructuredAnalysis, TransitSnapshot, UserApiKeyStatus, UserProfileForm, UserRecord } from './types';
 
 const EMPTY_PROFILE: UserProfileForm = {
   displayName: '',
@@ -56,11 +56,31 @@ function readStructuredAnalysis(value: unknown): StructuredAnalysis | null {
   return value as StructuredAnalysis;
 }
 
+function readChatResponseMeta(value: unknown): ChatResponseMeta | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+
+  if (typeof record.modelProvider !== 'string' || typeof record.usedFallback !== 'boolean' || typeof record.baziComputed !== 'boolean') {
+    return null;
+  }
+
+  return {
+    modelProvider: record.modelProvider,
+    usedFallback: record.usedFallback,
+    baziComputed: record.baziComputed,
+    baziSource: typeof record.baziSource === 'string' ? record.baziSource : undefined,
+  };
+}
+
 function extractLatestStructuredResult(messages: ChatMessage[]): {
   assistantMessage: string | null;
   structured: StructuredAnalysis | null;
+  meta: ChatResponseMeta | null;
 } {
   let fallbackAssistantMessage: string | null = null;
+  let fallbackMeta: ChatResponseMeta | null = null;
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
@@ -70,11 +90,13 @@ function extractLatestStructuredResult(messages: ChatMessage[]): {
 
     fallbackAssistantMessage ??= message.content;
     const meta = asRecord(message.meta_json);
+    fallbackMeta ??= readChatResponseMeta(meta);
     const structured = readStructuredAnalysis(meta?.structured);
     if (structured) {
       return {
         assistantMessage: message.content,
         structured,
+        meta: readChatResponseMeta(meta),
       };
     }
   }
@@ -82,6 +104,7 @@ function extractLatestStructuredResult(messages: ChatMessage[]): {
   return {
     assistantMessage: fallbackAssistantMessage,
     structured: null,
+    meta: fallbackMeta,
   };
 }
 
@@ -96,6 +119,7 @@ export function App() {
   const [transit, setTransit] = useState<TransitSnapshot | null>(null);
   const [latestStructured, setLatestStructured] = useState<StructuredAnalysis | null>(null);
   const [latestAssistantMessage, setLatestAssistantMessage] = useState<string | null>(null);
+  const [latestChatMeta, setLatestChatMeta] = useState<ChatResponseMeta | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatDraft, setChatDraft] = useState('');
@@ -164,6 +188,7 @@ export function App() {
       setTransit(null);
       setLatestStructured(null);
       setLatestAssistantMessage(null);
+      setLatestChatMeta(null);
       setActiveSessionId(null);
       setChatMessages([]);
       setChatDraft('');
@@ -263,6 +288,7 @@ export function App() {
     setChatMessages(history.messages.filter((message) => message.role !== 'system'));
     setLatestStructured(restored.structured);
     setLatestAssistantMessage(restored.assistantMessage);
+    setLatestChatMeta(restored.meta);
   }
 
   async function openSessionFromHistory(_sessionId: string) {
@@ -343,6 +369,7 @@ export function App() {
     setApiKeyDraft('');
     setLatestStructured(null);
     setLatestAssistantMessage(null);
+    setLatestChatMeta(null);
     setActiveSessionId(null);
     setChatMessages([]);
     setChatDraft('');
@@ -573,6 +600,7 @@ export function App() {
             transit={transit}
             structuredAnalysis={latestStructured}
             assistantMessage={latestAssistantMessage}
+            chatMeta={latestChatMeta}
             hasApiKey={Boolean(apiKeyStatus?.hasKey)}
             chatMessages={chatMessages}
             chatDraft={chatDraft}

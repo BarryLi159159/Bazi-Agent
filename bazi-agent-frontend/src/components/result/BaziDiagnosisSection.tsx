@@ -1,4 +1,4 @@
-import type { StructuredAnalysis } from '../../types';
+import type { ChatResponseMeta, StructuredAnalysis } from '../../types';
 
 function joinItems(items: string[]): string {
   return items.length > 0 ? items.join(' / ') : '-';
@@ -96,14 +96,25 @@ export function BaziDiagnosisSection(props: {
   t: Record<string, string>;
   analysis: StructuredAnalysis | null;
   assistantMessage: string | null;
+  chatMeta: ChatResponseMeta | null;
 }) {
-  const { t, analysis, assistantMessage } = props;
+  const { t, analysis, assistantMessage, chatMeta } = props;
+  const usedFallback = chatMeta?.usedFallback ?? false;
+  const providerName = chatMeta?.modelProvider ?? null;
 
   return (
     <section className="panel diagnosis-panel">
       <div className="panel-title-row">
-        <h3>{t.diagnosisSectionTitle ?? 'AI 八字诊断'}</h3>
-        <span className="panel-sub">{t.diagnosisSectionSubtitle ?? '10-step pipeline'}</span>
+        <div className="diagnosis-head-copy">
+          <h3>{t.diagnosisSectionTitle ?? 'AI 八字诊断'}</h3>
+          <span className="panel-sub">{t.diagnosisSectionSubtitle ?? '10-step pipeline'}</span>
+        </div>
+        {chatMeta ? (
+          <div className={`diagnosis-source-badge ${usedFallback ? 'fallback' : 'openai'}`}>
+            <strong>{usedFallback ? (t.diagnosisSourceFallback ?? 'Fallback') : (t.diagnosisSourceOpenAi ?? 'OpenAI')}</strong>
+            <small>{providerName}</small>
+          </div>
+        ) : null}
       </div>
 
       {!analysis ? (
