@@ -895,6 +895,40 @@ textarea {
   margin-bottom: -4px;
 }
 
+.result-view-switcher {
+  display: grid;
+  gap: 10px;
+}
+
+.result-view-hint {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.result-view-switcher .segmented button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.result-ai-empty {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.result-ai-empty h3 {
+  margin: 0;
+}
+
+.result-ai-empty p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.result-ai-empty-btn {
+  margin-top: 4px;
+}
+
 .result-hero {
   border: 1px solid #b99861;
   border-radius: 16px;

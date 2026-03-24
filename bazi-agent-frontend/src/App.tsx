@@ -190,19 +190,38 @@ export function App() {
     return user;
   }
 
+  async function refreshApiStatus(accessToken: string): Promise<UserApiKeyStatus | null> {
+    const status = await fetchApiKeyStatus(accessToken);
+    setApiKeyStatus(status);
+    return status;
+  }
+
   useEffect(() => {
     if (!settingsOpen || !session?.access_token) {
       return;
     }
     void (async () => {
       try {
-        const status = await fetchApiKeyStatus(session.access_token);
-        setApiKeyStatus(status);
+        await refreshApiStatus(session.access_token);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : t.loadFailed);
       }
     })();
   }, [settingsOpen, session?.access_token, t.loadFailed]);
+
+  useEffect(() => {
+    if (!session?.access_token) {
+      setApiKeyStatus(null);
+      return;
+    }
+    void (async () => {
+      try {
+        await refreshApiStatus(session.access_token);
+      } catch {
+        setApiKeyStatus(null);
+      }
+    })();
+  }, [session?.access_token]);
 
   useEffect(() => {
     if (step === 'landing' || !session?.access_token) {
@@ -337,8 +356,7 @@ export function App() {
     setSettingsOpen(true);
     setError(null);
     try {
-      const status = await fetchApiKeyStatus(session.access_token);
-      setApiKeyStatus(status);
+      await refreshApiStatus(session.access_token);
     } catch (err) {
       setError(err instanceof Error ? err.message : t.loadFailed);
     }
@@ -357,8 +375,7 @@ export function App() {
     setError(null);
     try {
       await saveApiKey(session.access_token, value);
-      const status = await fetchApiKeyStatus(session.access_token);
-      setApiKeyStatus(status);
+      await refreshApiStatus(session.access_token);
       setApiKeyDraft('');
     } catch (err) {
       setError(err instanceof Error ? err.message : t.loadFailed);
@@ -556,11 +573,13 @@ export function App() {
             transit={transit}
             structuredAnalysis={latestStructured}
             assistantMessage={latestAssistantMessage}
+            hasApiKey={Boolean(apiKeyStatus?.hasKey)}
             chatMessages={chatMessages}
             chatDraft={chatDraft}
             chatSending={chatSending}
             onChatDraftChange={setChatDraft}
             onChatSubmit={() => void handleSendFollowUp()}
+            onOpenSettings={() => void handleOpenSettings()}
             onEdit={() => setStep('input')}
             onBack={() => setStep('landing')}
           />
