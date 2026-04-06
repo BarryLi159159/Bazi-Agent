@@ -1203,6 +1203,17 @@ textarea {
   color: #1f2937;
 }
 
+.diagnosis-evidence-inline {
+  margin: 2px 0 0;
+  color: #657084;
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+.diagnosis-evidence-inline strong {
+  color: #334155;
+}
+
 .diagnosis-overview-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1254,25 +1265,6 @@ textarea {
   margin: 0;
   line-height: 1.6;
   color: #3f4756;
-}
-
-.diagnosis-evidence-list {
-  display: grid;
-  gap: 10px;
-}
-
-.diagnosis-evidence-item {
-  border: 1px solid #edf1f6;
-  border-radius: 12px;
-  padding: 12px;
-  background: #fafcff;
-  display: grid;
-  gap: 6px;
-}
-
-.diagnosis-evidence-item strong {
-  color: #1f2937;
-  line-height: 1.5;
 }
 
 .diagnosis-kv-grid,

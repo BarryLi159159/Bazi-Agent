@@ -7,7 +7,7 @@ import { HeaderBar } from './components/HeaderBar';
 import { InputStep } from './components/InputStep';
 import { LandingPage } from './components/LandingPage';
 import { ResultStep } from './components/ResultStep';
-import { normalizeChartRich } from './chartRich';
+import { normalizeChartRich, type NormalizedChartRich } from './chartRich';
 import { getTexts, type Language } from './locales';
 import { isSupabaseConfigured, supabase } from './supabase';
 import type { ChatMessage, ChatResponseMeta, SessionSummary, StructuredAnalysis, TransitSnapshot, UserApiKeyStatus, UserProfileForm, UserRecord } from './types';
@@ -39,6 +39,22 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function readExportJson(value: unknown): Record<string, unknown> | null {
   return asRecord(value);
+}
+
+function readTransitSnapshot(value: unknown): TransitSnapshot | null {
+  const record = asRecord(value);
+  if (!record || typeof record.source !== 'string' || typeof record.generatedAt !== 'string' || !Array.isArray(record.layers)) {
+    return null;
+  }
+  return value as TransitSnapshot;
+}
+
+function readChartFromExportJson(exportJson: Record<string, unknown> | null): NormalizedChartRich | null {
+  const chart = asRecord(exportJson?.chart);
+  if (!chart) {
+    return null;
+  }
+  return normalizeChartRich({ chart_rich: chart });
 }
 
 function readStructuredAnalysis(value: unknown): StructuredAnalysis | null {
@@ -317,7 +333,6 @@ export function App() {
     setError(null);
     try {
       await syncSessionConversation(_sessionId, session.access_token);
-      await refreshUser(session.access_token);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : t.loadFailed);
     }
@@ -526,7 +541,11 @@ export function App() {
   }
 
   const bazi = asRecord(baziUser?.bazi_json);
-  const chartRich = normalizeChartRich(bazi);
+  const currentChartRich = normalizeChartRich(bazi);
+  const historyChartRich = readChartFromExportJson(latestExportJson);
+  const chartRich = historyChartRich ?? currentChartRich;
+  const historyTransit = readTransitSnapshot(latestExportJson?.transit);
+  const resultTransit = historyTransit ?? transit;
 
   return (
     <div className="app-root">
@@ -616,7 +635,7 @@ export function App() {
           <ResultStep
             t={t}
             chart={chartRich}
-            transit={transit}
+            transit={resultTransit}
             structuredAnalysis={latestStructured}
             assistantMessage={latestAssistantMessage}
             chatMeta={latestChatMeta}

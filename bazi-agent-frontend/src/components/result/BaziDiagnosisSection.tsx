@@ -123,7 +123,7 @@ export function BaziDiagnosisSection(props: {
   const usedFallback = chatMeta?.usedFallback ?? false;
   const providerName = chatMeta?.modelProvider ?? null;
   const fallbackReason = fallbackReasonLabel(chatMeta, t);
-  const evidenceSources = analysis?.evidenceSources ?? [];
+  const evidenceTitles = analysis ? [...new Set((analysis.evidenceSources ?? []).map((item) => item.title).filter(Boolean))].slice(0, 3) : [];
   const [copied, setCopied] = useState(false);
 
   async function handleCopyJson() {
@@ -175,6 +175,11 @@ export function BaziDiagnosisSection(props: {
             <div className="diagnosis-lead-card">
               <small>{t.diagnosisLeadLabel ?? '主回答'}</small>
               <p className="diagnosis-lead">{assistantMessage}</p>
+              {evidenceTitles.length > 0 ? (
+                <p className="diagnosis-evidence-inline">
+                  <strong>{t.diagnosisEvidenceTitle ?? '参考依据'}:</strong> {evidenceTitles.join('、')}
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -196,20 +201,6 @@ export function BaziDiagnosisSection(props: {
               <strong>{formatConfidence(analysis.confidence)}</strong>
             </article>
           </div>
-
-          {evidenceSources.length > 0 ? (
-            <article className="diagnosis-card diagnosis-card-wide">
-              <h4>{t.diagnosisEvidenceTitle ?? '参考依据'}</h4>
-              <div className="diagnosis-evidence-list">
-                {evidenceSources.map((item) => (
-                  <div key={`${item.title}-${item.section}`} className="diagnosis-evidence-item">
-                    <strong>{`${item.title}·${item.section}`}</strong>
-                    <p>{item.reason}</p>
-                  </div>
-                ))}
-              </div>
-            </article>
-          ) : null}
 
           <div className="diagnosis-card-grid">
             <article className="diagnosis-card">
@@ -325,10 +316,6 @@ export function BaziDiagnosisSection(props: {
                 <div className="diagnosis-kv">
                   <small>{t.diagnosisLuckEffectLabel ?? '运势作用'}</small>
                   <span>{luckEffectLabel(analysis.luckFlow.effectType)}</span>
-                </div>
-                <div className="diagnosis-kv">
-                  <small>{t.diagnosisChartBasisLabel ?? '排盘依据'}</small>
-                  <span>{analysis.chartBasis.baziSource ?? (t.diagnosisUnknown ?? '未标注')}</span>
                 </div>
               </div>
               <p>{analysis.luckFlow.summary}</p>
