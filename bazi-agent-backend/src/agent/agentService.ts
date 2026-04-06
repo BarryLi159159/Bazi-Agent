@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+
 import { config } from '../config.js';
 import { createMemory, listRecentMemories } from '../db/repositories/memoriesRepo.js';
 import { createMessage, listRecentMessagesBySession } from '../db/repositories/messagesRepo.js';
@@ -9,9 +11,16 @@ import { buildBaziProviders } from './baziProviders.js';
 import { hasChartRich, hasMissingFortuneCycles, mergeFortuneFromSupplement, normalizeBaziRecord } from './chartRich.js';
 import { extractMemoriesFromUserText } from './memoryExtractor.js';
 import { createModelProvider, RuleBasedModelProvider } from './modelProvider.js';
-import { buildAnalysisSystemPrompt, buildAnswerSystemPrompt, buildLlmContextJson, mapConversationMessages } from './prompts.js';
+import { mapBookSourceToTitle, normalizeBookSectionLabel, retrieveBookRagSnippets } from './rag/bookRag.js';
+import {
+  buildAnalysisSystemPrompt,
+  buildAnswerSystemPrompt,
+  buildBookRagQueryText,
+  buildLlmContextJson,
+  mapConversationMessages,
+} from './prompts.js';
 import { getCurrentTransitSnapshot } from './transitService.js';
-import type { AgentChatInput, AgentChatResult, BaziInput, ModelMessage, StructuredAnalysis } from './types.js';
+import type { AgentChatInput, AgentChatResult, BaziInput, EvidenceSource, ModelMessage, StructuredAnalysis } from './types.js';
 
 export class BadRequestError extends Error {}
 
@@ -49,6 +58,7 @@ function enrichStructuredAnalysis(
     hasBazi: boolean;
     baziSource?: string | undefined;
     transitGeneratedAt?: string | undefined;
+    evidenceSources?: EvidenceSource[] | undefined;
   },
 ): StructuredAnalysis {
   const chartBasis: StructuredAnalysis['chartBasis'] = {
@@ -65,10 +75,48 @@ function enrichStructuredAnalysis(
     chartBasis.transitGeneratedAt = options.transitGeneratedAt;
   }
 
+  const evidenceSources = options.evidenceSources && options.evidenceSources.length > 0 ? options.evidenceSources : analysis.evidenceSources;
+
   return {
     ...analysis,
     chartBasis,
+    evidenceSources,
   };
+}
+
+function buildEvidenceSourcesFromRagSnippets(
+  snippets: Array<{ source: string; heading: string; matchedKeywords: string[] }>,
+): EvidenceSource[] {
+  const sources: EvidenceSource[] = [];
+  const seen = new Set<string>();
+
+  for (const snippet of snippets) {
+    const title = mapBookSourceToTitle(snippet.source);
+    const section = normalizeBookSectionLabel(snippet.heading);
+    const dedupeKey = `${title}::${section}`;
+    if (seen.has(dedupeKey)) {
+      continue;
+    }
+    seen.add(dedupeKey);
+
+    const keywords = snippet.matchedKeywords.slice(0, 3);
+    const reason =
+      keywords.length > 0
+        ? `该段与本次判断重点相关，命中关键词：${keywords.join('、')}。`
+        : '该段与本次命盘判断主题接近，可作为参考依据。';
+
+    sources.push({
+      title,
+      section,
+      reason,
+    });
+
+    if (sources.length >= 3) {
+      break;
+    }
+  }
+
+  return sources;
 }
 
 function createSessionTitle(message: string): string {
@@ -126,6 +174,7 @@ function buildExportJsonPayload(params: {
   llmContextJson: Record<string, unknown>;
   analysisSystemPrompt: string;
   answerSystemPrompt: string;
+  bookRagSnippets?: Array<{ source: string; title: string; heading: string; section: string; score: number; matchedKeywords: string[]; textPreview: string }>;
 }): Record<string, unknown> {
   const profile = isRecord(params.user.profile_json) ? params.user.profile_json : {};
   const bazi = isRecord(params.user.bazi_json) ? params.user.bazi_json : null;
@@ -174,6 +223,11 @@ function buildExportJsonPayload(params: {
       llmContextJson: params.llmContextJson,
       analysisSystemPrompt: params.analysisSystemPrompt,
       answerSystemPrompt: params.answerSystemPrompt,
+      ...(params.bookRagSnippets?.length
+        ? {
+            bookRagSnippets: params.bookRagSnippets,
+          }
+        : {}),
     },
   };
 }
@@ -328,11 +382,29 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     transitData: transit,
   });
 
+  const bookRagQueryText = buildBookRagQueryText(activeUser.bazi_json, input.message);
+  let bookRagSnippets: Awaited<ReturnType<typeof retrieveBookRagSnippets>> = [];
+  if (config.BOOK_RAG_ENABLED && existsSync(config.BAZI_BOOKS_PATH) && bookRagQueryText.trim().length > 0) {
+    try {
+      bookRagSnippets = await retrieveBookRagSnippets({
+        booksPath: config.BAZI_BOOKS_PATH,
+        queryText: bookRagQueryText,
+        topK: config.BOOK_RAG_TOP_K,
+        minScore: config.BOOK_RAG_MIN_SCORE,
+      });
+    } catch (error) {
+      console.warn('[BookRAG] retrieve failed', error);
+    }
+  }
+
+  const evidenceSources = buildEvidenceSourcesFromRagSnippets(bookRagSnippets);
+
   const analysisSystemPrompt = buildAnalysisSystemPrompt({
     user: activeUser,
     memories,
     baziData: activeUser.bazi_json,
     transitData: transit,
+    ...(bookRagSnippets.length > 0 ? { bookRagSnippets } : {}),
   });
 
   const analysisMessages: ModelMessage[] = [
@@ -353,6 +425,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
       hasBazi: Boolean(activeUser.bazi_json),
       baziSource: baziSource ?? extractStoredBaziSource(activeUser.bazi_json),
       transitGeneratedAt: transit?.generatedAt,
+      evidenceSources,
     });
     answerSystemPrompt = buildAnswerSystemPrompt({ user: activeUser, analysis: structured });
     assistantMessage = await modelProvider.generateReply([
@@ -367,6 +440,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
       hasBazi: Boolean(activeUser.bazi_json),
       baziSource: baziSource ?? extractStoredBaziSource(activeUser.bazi_json),
       transitGeneratedAt: transit?.generatedAt,
+      evidenceSources,
     });
     answerSystemPrompt = buildAnswerSystemPrompt({ user: activeUser, analysis: structured });
     assistantMessage = await fallback.generateReply([
@@ -385,6 +459,19 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     llmContextJson,
     analysisSystemPrompt,
     answerSystemPrompt,
+    ...(bookRagSnippets.length > 0
+      ? {
+          bookRagSnippets: bookRagSnippets.map((s) => ({
+            source: s.source,
+            title: mapBookSourceToTitle(s.source),
+            heading: s.heading,
+            section: normalizeBookSectionLabel(s.heading),
+            score: s.score,
+            matchedKeywords: s.matchedKeywords,
+            textPreview: s.text.length > 500 ? `${s.text.slice(0, 500)}…` : s.text,
+          })),
+        }
+      : {}),
   });
 
   await createMessage({

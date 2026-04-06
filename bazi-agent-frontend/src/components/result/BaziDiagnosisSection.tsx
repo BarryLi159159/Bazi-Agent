@@ -123,6 +123,7 @@ export function BaziDiagnosisSection(props: {
   const usedFallback = chatMeta?.usedFallback ?? false;
   const providerName = chatMeta?.modelProvider ?? null;
   const fallbackReason = fallbackReasonLabel(chatMeta, t);
+  const evidenceSources = analysis?.evidenceSources ?? [];
   const [copied, setCopied] = useState(false);
 
   async function handleCopyJson() {
@@ -195,6 +196,20 @@ export function BaziDiagnosisSection(props: {
               <strong>{formatConfidence(analysis.confidence)}</strong>
             </article>
           </div>
+
+          {evidenceSources.length > 0 ? (
+            <article className="diagnosis-card diagnosis-card-wide">
+              <h4>{t.diagnosisEvidenceTitle ?? '参考依据'}</h4>
+              <div className="diagnosis-evidence-list">
+                {evidenceSources.map((item) => (
+                  <div key={`${item.title}-${item.section}`} className="diagnosis-evidence-item">
+                    <strong>{`${item.title}·${item.section}`}</strong>
+                    <p>{item.reason}</p>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ) : null}
 
           <div className="diagnosis-card-grid">
             <article className="diagnosis-card">

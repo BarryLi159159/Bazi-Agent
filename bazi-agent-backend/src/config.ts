@@ -13,7 +13,14 @@ const envSchema = z.object({
   OPENAI_MODEL: z.string().min(1).default('gpt-4.1-mini'),
   BAZI_MCP_DIST_PATH: z.string().default('../bazi-mcp-dev/dist/index.js'),
   BAZI_MASTER_SCRIPT_PATH: z.string().default('../bazi-master/bazi.py'),
+  BAZI_BOOKS_PATH: z.string().default('../bazi-master/books'),
   BAZI_MASTER_PYTHON_BIN: z.string().default('python3'),
+  BOOK_RAG_ENABLED: z
+    .string()
+    .default('true')
+    .transform((value) => value.toLowerCase() !== 'false'),
+  BOOK_RAG_TOP_K: z.coerce.number().int().min(1).max(20).default(5),
+  BOOK_RAG_MIN_SCORE: z.coerce.number().min(0).max(100).default(5),
   AUTO_EXTRACT_MEMORY: z
     .string()
     .default('true')
@@ -41,4 +48,5 @@ export const config = {
   PROJECT_ROOT: projectRoot,
   BAZI_MCP_DIST_PATH: resolveFromProjectRoot(parsed.data.BAZI_MCP_DIST_PATH),
   BAZI_MASTER_SCRIPT_PATH: resolveFromProjectRoot(parsed.data.BAZI_MASTER_SCRIPT_PATH),
+  BAZI_BOOKS_PATH: resolveFromProjectRoot(parsed.data.BAZI_BOOKS_PATH),
 };

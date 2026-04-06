@@ -57,7 +57,11 @@ function readStructuredAnalysis(value: unknown): StructuredAnalysis | null {
     return null;
   }
 
-  return value as StructuredAnalysis;
+  const evidenceSources = Array.isArray(record.evidenceSources) ? record.evidenceSources : [];
+  return {
+    ...(value as StructuredAnalysis),
+    evidenceSources,
+  };
 }
 
 function readChatResponseMeta(value: unknown): ChatResponseMeta | null {

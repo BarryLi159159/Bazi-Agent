@@ -13,6 +13,157 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+function clipText(value: string, limit = 600): string {
+  return value.length > limit ? `${value.slice(0, limit)}...` : value;
+}
+
+function pickString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
+}
+
+function pickBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', 'yes', 'y', '1', '是', '有'].includes(normalized)) {
+      return true;
+    }
+    if (['false', 'no', 'n', '0', '否', '无'].includes(normalized)) {
+      return false;
+    }
+  }
+  return fallback;
+}
+
+function pickNumber(value: unknown, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(/%$/, '');
+    const parsed = Number(normalized);
+    if (Number.isFinite(parsed)) {
+      return value.includes('%') ? parsed / 100 : parsed;
+    }
+  }
+  return fallback;
+}
+
+function toStringArray(value: unknown, limit: number): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, limit);
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value
+      .split(/[\n;；。]/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, limit);
+  }
+  return [];
+}
+
+function pickEnum<T extends string>(value: unknown, candidates: readonly T[], fallback: T): T {
+  return typeof value === 'string' && (candidates as readonly string[]).includes(value) ? (value as T) : fallback;
+}
+
+function normalizeStructuredAnalysisPayload(raw: unknown): Record<string, unknown> {
+  const obj = isRecord(raw) ? raw : {};
+
+  const chartBasisRaw = isRecord(obj['chartBasis']) ? obj['chartBasis'] : null;
+  const chartBasisText = typeof obj['chartBasis'] === 'string' ? obj['chartBasis'] : '';
+  const structureTypeRaw = isRecord(obj['structureType']) ? obj['structureType'] : null;
+  const structureTypeText = typeof obj['structureType'] === 'string' ? obj['structureType'] : '';
+  const failureRaw = isRecord(obj['failure']) ? obj['failure'] : null;
+  const rescueRaw = isRecord(obj['rescue']) ? obj['rescue'] : null;
+  const capacityRaw = isRecord(obj['capacity']) ? obj['capacity'] : null;
+  const usefulGodsRaw = isRecord(obj['usefulGods']) ? obj['usefulGods'] : null;
+  const usefulGodEffectivenessRaw = isRecord(obj['usefulGodEffectiveness']) ? obj['usefulGodEffectiveness'] : null;
+  const stabilityRaw = isRecord(obj['stability']) ? obj['stability'] : null;
+  const preferencesRaw = isRecord(obj['preferences']) ? obj['preferences'] : null;
+  const failureModeRaw = isRecord(obj['failureMode']) ? obj['failureMode'] : null;
+  const luckFlowRaw = isRecord(obj['luckFlow']) ? obj['luckFlow'] : null;
+  const finalSummaryRaw = isRecord(obj['finalSummary']) ? obj['finalSummary'] : null;
+
+  return {
+    questionSummary: pickString(obj['questionSummary'], '用户希望获得命盘系统分析'),
+    chartBasis: {
+      hasBazi:
+        pickBoolean(chartBasisRaw?.['hasBazi'], false) ||
+        /八字|命盘|已排盘/.test(chartBasisText),
+      baziSource: pickString(chartBasisRaw?.['baziSource']) || undefined,
+      transitIncluded:
+        pickBoolean(chartBasisRaw?.['transitIncluded'], false) ||
+        /流转|流年|大运|运势/.test(chartBasisText),
+      transitGeneratedAt: pickString(chartBasisRaw?.['transitGeneratedAt']) || undefined,
+    },
+    reasoningSummary: toStringArray(obj['reasoningSummary'], 4).length > 0 ? toStringArray(obj['reasoningSummary'], 4) : ['按结构顺序完成命局判断。'],
+    structureType: {
+      pattern: pickEnum(structureTypeRaw?.['pattern'], ['ordinary', 'follow', 'transform', 'uncertain'] as const, 'uncertain'),
+      isExtreme: pickBoolean(structureTypeRaw?.['isExtreme'], false),
+      extremeNote: pickString(structureTypeRaw?.['extremeNote'], structureTypeText || '当前未见足够证据判定极端结构。'),
+      followAdjustment: pickString(structureTypeRaw?.['followAdjustment'], '若后续确认从格或化格，应改用顺势判断。'),
+    },
+    failure: {
+      fiveElementImbalance: toStringArray(failureRaw?.['fiveElementImbalance'], 5),
+      clashes: toStringArray(failureRaw?.['clashes'], 6),
+      structuralBreaks: toStringArray(failureRaw?.['structuralBreaks'], 6),
+      primaryFailure: pickString(failureRaw?.['primaryFailure'], '当前主要问题在于结构失衡与修复链条不稳。'),
+    },
+    rescue: {
+      rescuable: pickBoolean(rescueRaw?.['rescuable'], false),
+      rescueReason: pickString(rescueRaw?.['rescueReason'], '是否可救仍需结合原局与运势共同判断。'),
+      candidateUsefulGods: toStringArray(rescueRaw?.['candidateUsefulGods'], 5),
+    },
+    capacity: {
+      dayMasterStrength: pickEnum(capacityRaw?.['dayMasterStrength'], ['weak', 'balanced', 'strong'] as const, 'balanced'),
+      loadBearing: pickString(capacityRaw?.['loadBearing'], '日主承载能力仅作辅助参考。'),
+      note: pickString(capacityRaw?.['note'], '身强身弱不能替代病药判断。'),
+    },
+    usefulGods: {
+      primary: toStringArray(usefulGodsRaw?.['primary'], 4).length > 0 ? toStringArray(usefulGodsRaw?.['primary'], 4) : ['木'],
+      support: toStringArray(usefulGodsRaw?.['support'], 4),
+      rationale: pickString(usefulGodsRaw?.['rationale'], '先找能修复主要病点的元素，再看辅助支撑。'),
+    },
+    usefulGodEffectiveness: {
+      rooted: pickBoolean(usefulGodEffectivenessRaw?.['rooted'], false),
+      constrained: pickBoolean(usefulGodEffectivenessRaw?.['constrained'], false),
+      combinedAway: pickBoolean(usefulGodEffectivenessRaw?.['combinedAway'], false),
+      sufficientForce: pickBoolean(usefulGodEffectivenessRaw?.['sufficientForce'], false),
+      effective: pickBoolean(usefulGodEffectivenessRaw?.['effective'], false),
+      reason: pickString(usefulGodEffectivenessRaw?.['reason'], '用神是否有效仍需看根气、受制与运势条件。'),
+    },
+    stability: {
+      level: pickEnum(stabilityRaw?.['level'], ['stable', 'semi_stable', 'fragile'] as const, 'fragile'),
+      positiveLoops: toStringArray(stabilityRaw?.['positiveLoops'], 5),
+      weakPoints: toStringArray(stabilityRaw?.['weakPoints'], 5),
+    },
+    preferences: {
+      favorable: toStringArray(preferencesRaw?.['favorable'], 5),
+      unfavorable: toStringArray(preferencesRaw?.['unfavorable'], 5),
+      rationale: pickString(preferencesRaw?.['rationale'], '喜忌以系统稳定与病药修复为标准。'),
+    },
+    failureMode: {
+      collapseTriggers: toStringArray(failureModeRaw?.['collapseTriggers'], 5),
+      collapseCondition: pickString(failureModeRaw?.['collapseCondition'], '最怕原局病点被运势继续放大且没有修复元素承接。'),
+    },
+    luckFlow: {
+      effectType: pickEnum(luckFlowRaw?.['effectType'], ['repair', 'amplify_failure', 'collapse_trigger', 'mixed'] as const, 'mixed'),
+      evidence: toStringArray(luckFlowRaw?.['evidence'], 5),
+      summary: pickString(luckFlowRaw?.['summary'], '运势会影响结构稳定性，需要结合原局动态观察。'),
+    },
+    finalSummary: {
+      coreProblem: pickString(finalSummaryRaw?.['coreProblem'], '当前命盘的核心问题在于结构失衡。'),
+      solution: pickString(finalSummaryRaw?.['solution'], '优先找能修病的主用神，并观察是否真正得力。'),
+      trajectoryImpact: pickString(finalSummaryRaw?.['trajectoryImpact'], '运势会决定问题被修复还是被放大。'),
+    },
+    evidenceSources: Array.isArray(obj['evidenceSources']) ? obj['evidenceSources'] : [],
+    confidence: Math.min(1, Math.max(0, pickNumber(obj['confidence'], 0.6))),
+  };
+}
+
 function extractJsonObject(raw: string): string {
   const trimmed = raw.trim();
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
@@ -76,8 +227,23 @@ export class OpenAIModelProvider implements ModelProvider {
       temperature: 0.2,
       responseFormat: { type: 'json_object' },
     });
-    const parsed = JSON.parse(extractJsonObject(content));
-    return structuredAnalysisSchema.parse(parsed);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(extractJsonObject(content));
+    } catch (error) {
+      throw new Error(
+        `Structured analysis JSON parse failed: ${error instanceof Error ? error.message : String(error)} | raw=${clipText(content)}`,
+      );
+    }
+
+    const normalized = normalizeStructuredAnalysisPayload(parsed);
+    const validated = structuredAnalysisSchema.safeParse(normalized);
+    if (!validated.success) {
+      throw new Error(
+        `Structured analysis schema validation failed: ${JSON.stringify(validated.error.issues)} | raw=${clipText(content)}`,
+      );
+    }
+    return validated.data;
   }
 
   async generateReply(messages: ModelMessage[]): Promise<string> {
@@ -238,6 +404,7 @@ export class RuleBasedModelProvider implements ModelProvider {
         solution: hasBazi ? '仍有修复空间，关键是找到真正能修病的主用神并验证它是否有效。' : '先补全命盘与关键信息，再谈用神和稳定方案。',
         trajectoryImpact: transitIncluded ? '运势会通过放大问题或提供修复入口来改变人生轨迹，关键看它是否真正引入有效用神。' : '在未纳入流转时，只能先做静态判断，动态轨迹还需要结合大运再看。',
       },
+      evidenceSources: [],
       confidence: hasBazi ? 0.72 : 0.46,
     };
   }
@@ -262,6 +429,13 @@ export class RuleBasedModelProvider implements ModelProvider {
           `结构类型：${analysis.structureType.pattern}；系统稳定性：${analysis.stability.level}。`,
           `主用神：${analysis.usefulGods.primary.join('、')}；辅助用神：${analysis.usefulGods.support.join('、') || '暂无'}。`,
           `触发崩溃条件：${analysis.failureMode.collapseCondition}`,
+          ...(analysis.evidenceSources.length > 0
+            ? [
+                '',
+                '参考依据：',
+                ...analysis.evidenceSources.map((item, index) => `${index + 1}. ${item.title}·${item.section}`),
+              ]
+            : []),
         ]
           .filter(Boolean)
           .join('\n');

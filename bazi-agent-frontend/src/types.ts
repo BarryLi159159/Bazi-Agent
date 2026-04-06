@@ -81,6 +81,11 @@ export interface StructuredAnalysis {
     solution: string;
     trajectoryImpact: string;
   };
+  evidenceSources: Array<{
+    title: string;
+    section: string;
+    reason: string;
+  }>;
   confidence: number;
 }
 

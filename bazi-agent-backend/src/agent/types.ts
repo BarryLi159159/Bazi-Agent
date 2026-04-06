@@ -30,6 +30,13 @@ export type StabilityLevel = z.infer<typeof stabilityLevelSchema>;
 export const luckEffectTypeSchema = z.enum(['repair', 'amplify_failure', 'collapse_trigger', 'mixed']);
 export type LuckEffectType = z.infer<typeof luckEffectTypeSchema>;
 
+export const evidenceSourceSchema = z.object({
+  title: z.string().min(1).max(80),
+  section: z.string().min(1).max(120),
+  reason: z.string().min(1).max(160),
+});
+export type EvidenceSource = z.infer<typeof evidenceSourceSchema>;
+
 export const structuredAnalysisSchema = z.object({
   questionSummary: z.string().min(1).max(200),
   chartBasis: z.object({
@@ -98,6 +105,7 @@ export const structuredAnalysisSchema = z.object({
     solution: z.string().min(1).max(180),
     trajectoryImpact: z.string().min(1).max(180),
   }),
+  evidenceSources: z.array(evidenceSourceSchema).max(3).default([]),
   confidence: z.number().min(0).max(1),
 });
 export type StructuredAnalysis = z.infer<typeof structuredAnalysisSchema>;

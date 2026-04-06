@@ -1,4 +1,5 @@
 import type { DbMessage, DbUser, DbUserMemory } from '../db/types.js';
+import { mapBookSourceToTitle, normalizeBookSectionLabel, type BookRagSnippet } from './rag/bookRag.js';
 import type { TransitSnapshot } from './transitService.js';
 import type { StructuredAnalysis } from './types.js';
 
@@ -88,6 +89,70 @@ function summarizeBazi(bazi: unknown): string {
   }
 
   return `八字信息：${String(bazi)}`;
+}
+
+function extractPillarText(pillarValue: unknown): string | null {
+  if (!isRecord(pillarValue)) {
+    return null;
+  }
+  const stem = isRecord(pillarValue['stem']) ? pillarValue['stem'] : null;
+  const branch = isRecord(pillarValue['branch']) ? pillarValue['branch'] : null;
+  const stemText = pickStringField(stem ?? {}, 'text') ?? '';
+  const branchText = pickStringField(branch ?? {}, 'text') ?? '';
+  const combined = `${stemText}${branchText}`.trim();
+  return combined || null;
+}
+
+function detectBookRagIntentTags(userMessage: string): string[] {
+  const tags = new Set<string>();
+  if (/事业|工作|职业|升职|求职|创业/.test(userMessage)) {
+    tags.add('事业');
+    tags.add('工作');
+    tags.add('正官');
+    tags.add('行运');
+  }
+  if (/婚姻|感情|对象|恋爱|结婚|伴侣/.test(userMessage)) {
+    tags.add('婚姻');
+    tags.add('感情');
+    tags.add('妻子');
+    tags.add('桃花');
+  }
+  if (/财运|赚钱|收入|财富|投资/.test(userMessage)) {
+    tags.add('财运');
+    tags.add('正财');
+    tags.add('偏财');
+  }
+  if (/用神|喜神|忌神|格局|调候|从格|化格/.test(userMessage)) {
+    for (const keyword of ['用神', '喜神', '忌神', '格局', '调候', '从格', '化格']) {
+      if (userMessage.includes(keyword)) {
+        tags.add(keyword);
+      }
+    }
+  }
+  return [...tags];
+}
+
+/** 用于典籍 RAG 检索：结构化标签 + 命盘摘要 + 用户原话。 */
+export function buildBookRagQueryText(bazi: unknown, userMessage: string): string {
+  const chartSummary = summarizeBazi(bazi).slice(0, 1200);
+  const q = userMessage.trim().slice(0, 600);
+  const baziRecord = isRecord(bazi) ? bazi : null;
+  const chart = isRecord(baziRecord?.['chart_rich']) ? baziRecord['chart_rich'] : null;
+  const basic = isRecord(chart?.['basic']) ? chart['basic'] : null;
+  const pillars = isRecord(chart?.['pillars']) ? chart['pillars'] : null;
+  const dayMaster = pickStringField(basic ?? {}, 'dayMaster');
+  const monthPillar = pillars ? extractPillarText(pillars['month']) : null;
+  const intentTags = detectBookRagIntentTags(q);
+
+  return [
+    q ? `用户问题：${q}` : '',
+    intentTags.length > 0 ? `关注主题：${intentTags.join('、')}` : '',
+    dayMaster ? `日主：${dayMaster}` : '',
+    monthPillar ? `月柱：${monthPillar}` : '',
+    `命盘摘要：${chartSummary}`,
+  ]
+    .filter((line) => line.length > 0)
+    .join('\n');
 }
 
 function summarizeTransit(transit: TransitSnapshot | null | undefined): string {
@@ -318,13 +383,37 @@ export function buildLlmContextJson(params: {
   };
 }
 
+function formatBookRagSection(snippets: BookRagSnippet[]): string {
+  const lines = snippets.map((s, i) => {
+    const body = s.text.length > 2800 ? `${s.text.slice(0, 2800)}…` : s.text;
+    return [
+      `--- 片段 ${i + 1} ${mapBookSourceToTitle(s.source)}·${normalizeBookSectionLabel(s.heading)} ---`,
+      s.matchedKeywords.length > 0 ? `命中关键词：${s.matchedKeywords.join('、')}` : '',
+      body,
+    ]
+      .filter((line) => line.length > 0)
+      .join('\n');
+  });
+  return [
+    '以下是从本地典籍 Markdown（如《穷通宝鉴》《子平真诠》相关节选）中按标题与关键词检索到的片段，可能与命盘部分相关。',
+    '请结合 llmContextJson 与命盘事实斟酌使用：可化用其理，不要机械照搬；不要编造书中未出现的句子；片段排序不代表重要性。',
+    '',
+    ...lines,
+  ].join('\n');
+}
+
 export function buildAnalysisSystemPrompt(params: {
   user: DbUser;
   memories: DbUserMemory[];
   baziData: unknown;
   transitData?: TransitSnapshot | null;
+  bookRagSnippets?: BookRagSnippet[];
 }): string {
   const llmContextJson = buildLlmContextJson(params);
+  const ragBlock =
+    params.bookRagSnippets && params.bookRagSnippets.length > 0
+      ? ['', formatBookRagSection(params.bookRagSnippets), '']
+      : [];
   return [
     '你是一个中文八字咨询分析助手。',
     '你的任务不是直接输出散文，而是先按固定八字诊断 pipeline 输出一个合法 JSON。',
@@ -344,15 +433,20 @@ export function buildAnalysisSystemPrompt(params: {
     'Step 7 喜忌：以系统稳定为标准，而非个人偏好。',
     'Step 8 致命点：指出最怕什么、在什么条件下崩溃。',
     'Step 9 大运分析：判断当前整体运势作用类型是 repair / amplify_failure / collapse_trigger / mixed。',
+    'Step 10 参考依据：若上方提供了典籍片段，输出 0 到 3 条 evidenceSources，每条包含 title、section、reason；title 与 section 必须来自已提供片段，不可编造。',
     'JSON 字段要求：',
     '- questionSummary: 用一句话概括用户本轮真正想问什么',
     '- chartBasis: 说明是否有八字、来源、是否纳入流转',
     '- reasoningSummary: 1到4条极简步骤摘要',
-    '- structureType / failure / rescue / capacity / usefulGods / usefulGodEffectiveness / stability / preferences / failureMode / luckFlow / finalSummary / confidence 必须全部输出',
+    '- structureType / failure / rescue / capacity / usefulGods / usefulGodEffectiveness / stability / preferences / failureMode / luckFlow / finalSummary / evidenceSources / confidence 必须全部输出',
     '- finalSummary 必须对应三句话：核心问题、解决方案、运势影响',
+    '- evidenceSources 为空时输出 []；若有引用，title 用《书名》，section 用章节名，reason 用一句简短理由',
+    '- 注意：chartBasis、structureType、failure、rescue、capacity、usefulGods、usefulGodEffectiveness、stability、preferences、failureMode、luckFlow、finalSummary 都必须是 JSON 对象，不能写成字符串',
+    '- 最小合法示例：{"questionSummary":"用户想看整体命盘重点","chartBasis":{"hasBazi":true,"transitIncluded":true},"reasoningSummary":["先看结构","再看病药"],"structureType":{"pattern":"ordinary","isExtreme":false,"extremeNote":"未见极端证据","followAdjustment":"若后续确认从格再改用顺势法"},"failure":{"fiveElementImbalance":["五行偏枯"],"clashes":["需观察刑冲"],"structuralBreaks":["修复链条不稳"],"primaryFailure":"结构失衡"},"rescue":{"rescuable":true,"rescueReason":"仍有修复入口","candidateUsefulGods":["木"]},"capacity":{"dayMasterStrength":"balanced","loadBearing":"承载力中等","note":"身强身弱仅作辅助"},"usefulGods":{"primary":["木"],"support":["水"],"rationale":"先修病再谈扶抑"},"usefulGodEffectiveness":{"rooted":true,"constrained":false,"combinedAway":false,"sufficientForce":true,"effective":true,"reason":"原局与运势都能承接"},"stability":{"level":"semi_stable","positiveLoops":["有修复回路"],"weakPoints":["关键元素怕被冲掉"]},"preferences":{"favorable":["木","水"],"unfavorable":["进一步放大失衡的元素"],"rationale":"以系统稳定为标准"},"failureMode":{"collapseTriggers":["关键用神被冲克"],"collapseCondition":"运势继续放大原局病点"},"luckFlow":{"effectType":"mixed","evidence":["当前流转会改变受力"],"summary":"运势既可能修复也可能放大问题"},"finalSummary":{"coreProblem":"核心问题是结构失衡","solution":"主用神要先修病","trajectoryImpact":"运势会改变整体轨迹"},"evidenceSources":[],"confidence":0.72}',
     '',
     '输出风格：稳健、克制、以结构证据为先，不要夸张，不要宿命论。',
     '',
+    ...ragBlock,
     'llmContextJson：',
     JSON.stringify(llmContextJson, null, 2),
   ].join('\n');
@@ -370,7 +464,8 @@ export function buildAnswerSystemPrompt(params: {
     '2. 再用一句话说是否可救、主用神与稳定方案。',
     '3. 再用一句话说大运或当前运势如何影响整体轨迹。',
     '4. 若有必要，可在最后补 2 到 3 条行动建议，但整体不要太长。',
-    '5. 语气专业、清晰、克制，不要说“根据系统提示”。',
+    '5. 若结构化分析 JSON 里有 evidenceSources，请在回答末尾单独加一个“参考依据：”小节，列出 1 到 3 条《书名·章节》；不要伪造来源。',
+    '6. 语气专业、清晰、克制，不要说“根据系统提示”。',
     '',
     `用户显示名：${params.user.display_name ?? '未提供'}`,
     '结构化分析 JSON：',
