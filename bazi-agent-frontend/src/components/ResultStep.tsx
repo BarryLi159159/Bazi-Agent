@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import type { NormalizedChartRich } from '../chartRich';
 import type { ChatMessage, ChatResponseMeta, StructuredAnalysis, TransitSnapshot } from '../types';
+import { AnnualFortuneCard } from './result/AnnualFortuneCard';
 import { BaziDiagnosisSection } from './result/BaziDiagnosisSection';
 import { FiveElementsSection } from './result/FiveElementsSection';
 import { FortuneSection } from './result/FortuneSection';
 import { GodsSection } from './result/GodsSection';
+import { PersonalityCard } from './result/PersonalityCard';
 import { PillarsSection } from './result/PillarsSection';
 import { RelationsSection } from './result/RelationsSection';
 import { ResultChatSection } from './result/ResultChatSection';
@@ -123,6 +125,17 @@ export function ResultStep(props: {
         </>
       ) : hasApiKey ? (
         <>
+          {(structuredAnalysis?.personalitySnapshot || structuredAnalysis?.annualFortune) ? (
+            <div className="insight-cards-grid">
+              {structuredAnalysis.personalitySnapshot ? (
+                <PersonalityCard t={t} snapshot={structuredAnalysis.personalitySnapshot} dayMaster={chart.basic.dayMaster} />
+              ) : null}
+              {structuredAnalysis.annualFortune ? (
+                <AnnualFortuneCard t={t} fortune={structuredAnalysis.annualFortune} />
+              ) : null}
+            </div>
+          ) : null}
+
           <BaziDiagnosisSection t={t} analysis={structuredAnalysis} assistantMessage={assistantMessage} chatMeta={chatMeta} exportJson={exportJson} />
 
           <ResultChatSection

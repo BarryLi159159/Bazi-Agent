@@ -20,7 +20,7 @@ const envSchema = z.object({
     .default('true')
     .transform((value) => value.toLowerCase() !== 'false'),
   BOOK_RAG_TOP_K: z.coerce.number().int().min(1).max(20).default(5),
-  BOOK_RAG_MIN_SCORE: z.coerce.number().min(0).max(100).default(5),
+  BOOK_RAG_MIN_SCORE: z.coerce.number().min(0).max(100).default(7),
   AUTO_EXTRACT_MEMORY: z
     .string()
     .default('true')

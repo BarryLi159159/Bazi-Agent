@@ -12,6 +12,7 @@ import { hasChartRich, hasMissingFortuneCycles, mergeFortuneFromSupplement, norm
 import { extractMemoriesFromUserText } from './memoryExtractor.js';
 import { createModelProvider, RuleBasedModelProvider } from './modelProvider.js';
 import { mapBookSourceToTitle, normalizeBookSectionLabel, retrieveBookRagSnippets } from './rag/bookRag.js';
+import { classifyTopic } from './rag/topicRouter.js';
 import {
   buildAnalysisSystemPrompt,
   buildAnswerSystemPrompt,
@@ -382,6 +383,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     transitData: transit,
   });
 
+  const ragTopic = classifyTopic(input.message);
   const bookRagQueryText = buildBookRagQueryText(activeUser.bazi_json, input.message);
   let bookRagSnippets: Awaited<ReturnType<typeof retrieveBookRagSnippets>> = [];
   if (config.BOOK_RAG_ENABLED && existsSync(config.BAZI_BOOKS_PATH) && bookRagQueryText.trim().length > 0) {
@@ -391,6 +393,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
         queryText: bookRagQueryText,
         topK: config.BOOK_RAG_TOP_K,
         minScore: config.BOOK_RAG_MIN_SCORE,
+        topic: ragTopic,
       });
     } catch (error) {
       console.warn('[BookRAG] retrieve failed', error);

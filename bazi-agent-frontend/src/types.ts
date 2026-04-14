@@ -87,6 +87,18 @@ export interface StructuredAnalysis {
     reason: string;
   }>;
   confidence: number;
+  personalitySnapshot?: {
+    headline: string;
+    description: string;
+    luckyColor: string;
+    luckyDirection: string;
+    yearKeyword: string;
+  };
+  annualFortune?: {
+    year: number;
+    score: number;
+    summary: string;
+  };
 }
 
 export interface ChatResponseMeta {

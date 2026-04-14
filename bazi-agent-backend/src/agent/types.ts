@@ -107,6 +107,18 @@ export const structuredAnalysisSchema = z.object({
   }),
   evidenceSources: z.array(evidenceSourceSchema).max(3).default([]),
   confidence: z.number().min(0).max(1),
+  personalitySnapshot: z.object({
+    headline: z.string().min(1).max(30),
+    description: z.string().min(1).max(200),
+    luckyColor: z.string().min(1).max(20),
+    luckyDirection: z.string().min(1).max(20),
+    yearKeyword: z.string().min(1).max(20),
+  }).optional(),
+  annualFortune: z.object({
+    year: z.number(),
+    score: z.number().min(0).max(100),
+    summary: z.string().min(1).max(100),
+  }).optional(),
 });
 export type StructuredAnalysis = z.infer<typeof structuredAnalysisSchema>;
 

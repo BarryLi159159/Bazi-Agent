@@ -204,6 +204,13 @@ export const translations = {
     resultAiEmptyTitle: 'AI 解读未启用',
     resultAiEmptyBody: '当前账号还没有配置专属 API key，所以这里先保持为空，不显示规则兜底内容。',
     resultAiEmptyAction: '去 Settings 添加 API',
+    personalityShare: '分享',
+    personalityShareCopied: '已复制',
+    personalityColor: '幸运色',
+    personalityDirection: '方位',
+    personalityKeyword: '年度词',
+    annualFortuneTitle: '年度运势',
+    fortuneScoreLabel: '运势指数',
   },
   en: {
     appTitle: 'Bazi Agent',
@@ -408,6 +415,14 @@ export const translations = {
     resultAiEmptyTitle: 'AI reading is not enabled',
     resultAiEmptyBody: 'This account does not have a personal API key yet, so this area stays empty instead of showing fallback output.',
     resultAiEmptyAction: 'Open Settings',
+    personalityShare: 'Share',
+    personalityShareCopied: 'Copied',
+    personalityColor: 'Lucky color',
+    personalityDirection: 'Direction',
+    personalityKeyword: 'Year theme',
+    annualFortuneTitle: 'Annual Fortune',
+    fortuneScoreLabel: 'Fortune',
+    quickQ1: 'How is my luck this year?',
   },
 } as const;
 

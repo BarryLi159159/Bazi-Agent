@@ -103,38 +103,8 @@ function extractPillarText(pillarValue: unknown): string | null {
   return combined || null;
 }
 
-function detectBookRagIntentTags(userMessage: string): string[] {
-  const tags = new Set<string>();
-  if (/事业|工作|职业|升职|求职|创业/.test(userMessage)) {
-    tags.add('事业');
-    tags.add('工作');
-    tags.add('正官');
-    tags.add('行运');
-  }
-  if (/婚姻|感情|对象|恋爱|结婚|伴侣/.test(userMessage)) {
-    tags.add('婚姻');
-    tags.add('感情');
-    tags.add('妻子');
-    tags.add('桃花');
-  }
-  if (/财运|赚钱|收入|财富|投资/.test(userMessage)) {
-    tags.add('财运');
-    tags.add('正财');
-    tags.add('偏财');
-  }
-  if (/用神|喜神|忌神|格局|调候|从格|化格/.test(userMessage)) {
-    for (const keyword of ['用神', '喜神', '忌神', '格局', '调候', '从格', '化格']) {
-      if (userMessage.includes(keyword)) {
-        tags.add(keyword);
-      }
-    }
-  }
-  return [...tags];
-}
-
-/** 用于典籍 RAG 检索：结构化标签 + 命盘摘要 + 用户原话。 */
+/** 用于典籍 RAG 检索：命盘关键信息 + 用户原话。 */
 export function buildBookRagQueryText(bazi: unknown, userMessage: string): string {
-  const chartSummary = summarizeBazi(bazi).slice(0, 1200);
   const q = userMessage.trim().slice(0, 600);
   const baziRecord = isRecord(bazi) ? bazi : null;
   const chart = isRecord(baziRecord?.['chart_rich']) ? baziRecord['chart_rich'] : null;
@@ -142,14 +112,11 @@ export function buildBookRagQueryText(bazi: unknown, userMessage: string): strin
   const pillars = isRecord(chart?.['pillars']) ? chart['pillars'] : null;
   const dayMaster = pickStringField(basic ?? {}, 'dayMaster');
   const monthPillar = pillars ? extractPillarText(pillars['month']) : null;
-  const intentTags = detectBookRagIntentTags(q);
 
   return [
     q ? `用户问题：${q}` : '',
-    intentTags.length > 0 ? `关注主题：${intentTags.join('、')}` : '',
     dayMaster ? `日主：${dayMaster}` : '',
     monthPillar ? `月柱：${monthPillar}` : '',
-    `命盘摘要：${chartSummary}`,
   ]
     .filter((line) => line.length > 0)
     .join('\n');
@@ -395,8 +362,8 @@ function formatBookRagSection(snippets: BookRagSnippet[]): string {
       .join('\n');
   });
   return [
-    '以下是从本地典籍 Markdown（如《穷通宝鉴》《子平真诠》相关节选）中按标题与关键词检索到的片段，可能与命盘部分相关。',
-    '请结合 llmContextJson 与命盘事实斟酌使用：可化用其理，不要机械照搬；不要编造书中未出现的句子；片段排序不代表重要性。',
+    '以下是从《子平真诠》等典籍中按主题路由与关键词检索到的片段，已按主题相关性排序。',
+    '请结合 llmContextJson 与命盘事实斟酌使用：可化用其理，不要机械照搬；不要编造书中未出现的句子。',
     '',
     ...lines,
   ].join('\n');
@@ -434,15 +401,17 @@ export function buildAnalysisSystemPrompt(params: {
     'Step 8 致命点：指出最怕什么、在什么条件下崩溃。',
     'Step 9 大运分析：判断当前整体运势作用类型是 repair / amplify_failure / collapse_trigger / mixed。',
     'Step 10 参考依据：若上方提供了典籍片段，输出 0 到 3 条 evidenceSources，每条包含 title、section、reason；title 与 section 必须来自已提供片段，不可编造。',
+    'Step 11 性格速览：输出 personalitySnapshot 对象，包含 headline（6字以内的性格标签，如"温和务实的领导者"）、description（2到3句口语化中文性格描述，不用术语，温暖杂志风）、luckyColor（幸运颜色）、luckyDirection（幸运方位）、yearKeyword（一个词概括今年主题）。基于日主五行与五行平衡推导。',
+    'Step 12 年度运势：输出 annualFortune 对象，包含 year（当前年份数字）、score（0到100的整体运势分数）、summary（一句口语化总结，如"上半年平稳，下半年有突破机会"）。基于 luckFlow 分析和流转数据推导。',
     'JSON 字段要求：',
     '- questionSummary: 用一句话概括用户本轮真正想问什么',
     '- chartBasis: 说明是否有八字、来源、是否纳入流转',
     '- reasoningSummary: 1到4条极简步骤摘要',
-    '- structureType / failure / rescue / capacity / usefulGods / usefulGodEffectiveness / stability / preferences / failureMode / luckFlow / finalSummary / evidenceSources / confidence 必须全部输出',
+    '- structureType / failure / rescue / capacity / usefulGods / usefulGodEffectiveness / stability / preferences / failureMode / luckFlow / finalSummary / evidenceSources / confidence / personalitySnapshot / annualFortune 必须全部输出',
     '- finalSummary 必须对应三句话：核心问题、解决方案、运势影响',
     '- evidenceSources 为空时输出 []；若有引用，title 用《书名》，section 用章节名，reason 用一句简短理由',
-    '- 注意：chartBasis、structureType、failure、rescue、capacity、usefulGods、usefulGodEffectiveness、stability、preferences、failureMode、luckFlow、finalSummary 都必须是 JSON 对象，不能写成字符串',
-    '- 最小合法示例：{"questionSummary":"用户想看整体命盘重点","chartBasis":{"hasBazi":true,"transitIncluded":true},"reasoningSummary":["先看结构","再看病药"],"structureType":{"pattern":"ordinary","isExtreme":false,"extremeNote":"未见极端证据","followAdjustment":"若后续确认从格再改用顺势法"},"failure":{"fiveElementImbalance":["五行偏枯"],"clashes":["需观察刑冲"],"structuralBreaks":["修复链条不稳"],"primaryFailure":"结构失衡"},"rescue":{"rescuable":true,"rescueReason":"仍有修复入口","candidateUsefulGods":["木"]},"capacity":{"dayMasterStrength":"balanced","loadBearing":"承载力中等","note":"身强身弱仅作辅助"},"usefulGods":{"primary":["木"],"support":["水"],"rationale":"先修病再谈扶抑"},"usefulGodEffectiveness":{"rooted":true,"constrained":false,"combinedAway":false,"sufficientForce":true,"effective":true,"reason":"原局与运势都能承接"},"stability":{"level":"semi_stable","positiveLoops":["有修复回路"],"weakPoints":["关键元素怕被冲掉"]},"preferences":{"favorable":["木","水"],"unfavorable":["进一步放大失衡的元素"],"rationale":"以系统稳定为标准"},"failureMode":{"collapseTriggers":["关键用神被冲克"],"collapseCondition":"运势继续放大原局病点"},"luckFlow":{"effectType":"mixed","evidence":["当前流转会改变受力"],"summary":"运势既可能修复也可能放大问题"},"finalSummary":{"coreProblem":"核心问题是结构失衡","solution":"主用神要先修病","trajectoryImpact":"运势会改变整体轨迹"},"evidenceSources":[],"confidence":0.72}',
+    '- 注意：chartBasis、structureType、failure、rescue、capacity、usefulGods、usefulGodEffectiveness、stability、preferences、failureMode、luckFlow、finalSummary、personalitySnapshot、annualFortune 都必须是 JSON 对象，不能写成字符串',
+    '- 最小合法示例：{"questionSummary":"用户想看整体命盘重点","chartBasis":{"hasBazi":true,"transitIncluded":true},"reasoningSummary":["先看结构","再看病药"],"structureType":{"pattern":"ordinary","isExtreme":false,"extremeNote":"未见极端证据","followAdjustment":"若后续确认从格再改用顺势法"},"failure":{"fiveElementImbalance":["五行偏枯"],"clashes":["需观察刑冲"],"structuralBreaks":["修复链条不稳"],"primaryFailure":"结构失衡"},"rescue":{"rescuable":true,"rescueReason":"仍有修复入口","candidateUsefulGods":["木"]},"capacity":{"dayMasterStrength":"balanced","loadBearing":"承载力中等","note":"身强身弱仅作辅助"},"usefulGods":{"primary":["木"],"support":["水"],"rationale":"先修病再谈扶抑"},"usefulGodEffectiveness":{"rooted":true,"constrained":false,"combinedAway":false,"sufficientForce":true,"effective":true,"reason":"原局与运势都能承接"},"stability":{"level":"semi_stable","positiveLoops":["有修复回路"],"weakPoints":["关键元素怕被冲掉"]},"preferences":{"favorable":["木","水"],"unfavorable":["进一步放大失衡的元素"],"rationale":"以系统稳定为标准"},"failureMode":{"collapseTriggers":["关键用神被冲克"],"collapseCondition":"运势继续放大原局病点"},"luckFlow":{"effectType":"mixed","evidence":["当前流转会改变受力"],"summary":"运势既可能修复也可能放大问题"},"finalSummary":{"coreProblem":"核心问题是结构失衡","solution":"主用神要先修病","trajectoryImpact":"运势会改变整体轨迹"},"evidenceSources":[],"confidence":0.72,"personalitySnapshot":{"headline":"温和务实型","description":"你天生稳重踏实，做事有条理，给人可靠的感觉。适合在需要耐心和细致的领域发展。","luckyColor":"绿色","luckyDirection":"东方","yearKeyword":"稳中求进"},"annualFortune":{"year":2026,"score":68,"summary":"上半年平稳过渡，下半年有突破机会，注意秋季健康。"}}',
     '',
     '输出风格：稳健、克制、以结构证据为先，不要夸张，不要宿命论。',
     '',

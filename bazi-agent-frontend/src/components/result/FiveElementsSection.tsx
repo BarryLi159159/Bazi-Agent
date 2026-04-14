@@ -1,5 +1,13 @@
 import type { NormalizedFiveElements } from '../../chartRich';
 
+const ELEMENT_BAR_CLASS: Record<string, string> = {
+  '金': 'element-metal',
+  '木': 'element-wood',
+  '水': 'element-water',
+  '火': 'element-fire',
+  '土': 'element-earth',
+};
+
 export function FiveElementsSection(props: {
   title: string;
   data: NormalizedFiveElements;
@@ -34,11 +42,12 @@ export function FiveElementsSection(props: {
         {items.map((item) => {
           const value = item.value ?? 0;
           const width = Math.round((value / maxValue) * 100);
+          const elClass = ELEMENT_BAR_CLASS[item.key] ?? '';
           return (
             <div key={`${item.key}-bar`} className="element-bar-row">
               <span>{item.key}</span>
               <div className="element-bar-track">
-                <i style={{ width: `${width}%` }} />
+                <i className={elClass} style={{ width: `${width}%` }} />
               </div>
               <strong>{item.value ?? '-'}</strong>
             </div>

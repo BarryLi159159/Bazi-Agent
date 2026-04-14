@@ -1,4 +1,5 @@
 import { booksDirFingerprint, loadBookChunksFromDir, type BookChunk } from './chunkBooks.js';
+import { type RagTopic, chapterTopicBonus, chapterDenyPenalty } from './topicRouter.js';
 
 export type BookRagSnippet = {
   source: string;
@@ -21,45 +22,18 @@ let memoryIndex: LoadedIndex | null = null;
 let memoryFingerprint: string | null = null;
 
 const DOMAIN_KEYWORDS = [
-  '用神',
-  '喜神',
-  '忌神',
-  '相神',
-  '调候',
-  '格局',
-  '从格',
-  '化格',
-  '财运',
-  '事业',
-  '工作',
-  '婚姻',
-  '感情',
-  '妻子',
-  '桃花',
-  '行运',
-  '大运',
-  '流年',
-  '正官',
-  '七杀',
-  '偏官',
-  '正财',
-  '偏财',
-  '印绶',
-  '正印',
-  '偏印',
-  '食神',
-  '伤官',
-  '比肩',
-  '劫财',
-  '建禄',
-  '阳刃',
-  '墓库',
-  '刑冲',
-  '月令',
-  '日主',
+  '用神', '喜神', '忌神', '相神', '调候', '格局', '从格', '化格',
+  '财运', '事业', '工作', '婚姻', '感情', '妻子', '桃花',
+  '行运', '大运', '流年',
+  '正官', '七杀', '偏官', '正财', '偏财', '印绶', '正印', '偏印',
+  '食神', '伤官', '比肩', '劫财', '建禄', '阳刃', '墓库', '刑冲', '月令', '日主',
+  '从势', '从强', '化气', '禄神', '天德', '月德', '驿马', '华盖', '空亡',
+  '合化', '暗合', '三合', '六合', '三会', '半合', '天干五合', '地支六冲',
+  '穿害', '破格', '成格',
+  '健康', '疾病', '身体',
+  '官杀混杂', '伤官见官', '枭神夺食', '羊刃驾杀',
 ];
 
-const PREFACE_HINTS = ['序', '自序', '原序', '凡例', '前言'];
 const HEADING_ONLY_KEYWORDS = new Set(['财']);
 
 export function mapBookSourceToTitle(source: string): string {
@@ -67,10 +41,7 @@ export function mapBookSourceToTitle(source: string): string {
     return '《子平真诠》';
   }
   if (source === 'zipingzhenquanjizhu.md') {
-    return '《子平真诠集注》';
-  }
-  if (source === '穷通宝鉴.md') {
-    return '《穷通宝鉴》';
+    return '《子平真诠评注》';
   }
   return source;
 }
@@ -89,9 +60,6 @@ function sourcePriority(source: string): number {
   }
   if (source === 'zipingzhenquanjizhu.md') {
     return 2;
-  }
-  if (source === '穷通宝鉴.md') {
-    return 1;
   }
   return 0;
 }
@@ -152,29 +120,49 @@ function extractQueryKeywords(queryText: string): string[] {
     keywords.add(match);
   }
 
-  if (/事业|工作|职业|升职|求职|创业/.test(raw)) {
-    keywords.add('事业');
-    keywords.add('工作');
-    keywords.add('正官');
-    keywords.add('行运');
+  const stemMatches = raw.match(/日主[：:]*\s*([甲乙丙丁戊己庚辛壬癸])/);
+  if (stemMatches?.[1]) {
+    keywords.add(stemMatches[1]);
   }
-  if (/婚姻|感情|对象|恋爱|结婚|伴侣/.test(raw)) {
-    keywords.add('婚姻');
-    keywords.add('感情');
-    keywords.add('妻子');
-    keywords.add('桃花');
+
+  const monthBranchMatch = raw.match(/月柱[：:]*\s*[甲乙丙丁戊己庚辛壬癸]?([子丑寅卯辰巳午未申酉戌亥])/);
+  if (monthBranchMatch?.[1]) {
+    keywords.add(monthBranchMatch[1]);
   }
-  if (/财运|赚钱|收入|财富|投资/.test(raw)) {
-    keywords.add('财运');
-    keywords.add('财');
-    keywords.add('正财');
-    keywords.add('偏财');
+
+  if (/事业|工作|职业|升职|求职|创业|官运|仕途/.test(raw)) {
+    for (const kw of ['事业', '工作', '正官', '行运']) keywords.add(kw);
+  }
+  if (/婚姻|感情|对象|恋爱|结婚|伴侣|妻子|丈夫|桃花|姻缘|离婚/.test(raw)) {
+    for (const kw of ['婚姻', '感情', '妻子', '桃花']) keywords.add(kw);
+  }
+  if (/财运|赚钱|收入|财富|投资|发财|破财/.test(raw)) {
+    for (const kw of ['财运', '财', '正财', '偏财']) keywords.add(kw);
+  }
+  if (/健康|疾病|身体|生病|寿命|伤灾/.test(raw)) {
+    for (const kw of ['健康', '疾病', '身体']) keywords.add(kw);
+  }
+  if (/大运|流年|行运|运势|运程/.test(raw)) {
+    for (const kw of ['大运', '流年', '行运']) keywords.add(kw);
+  }
+  if (/用神|喜神|忌神|格局|调候|从格|化格|相神/.test(raw)) {
+    for (const kw of ['用神', '喜神', '忌神', '格局', '调候', '从格', '化格', '相神']) {
+      if (raw.includes(kw)) keywords.add(kw);
+    }
   }
 
   return [...keywords].sort((a, b) => b.length - a.length);
 }
 
-function scoreChunk(chunk: IndexedChunk, keywords: string[]): { score: number; matchedKeywords: string[] } {
+function headingBase(heading: string): string {
+  return heading.replace(/（续\d+）$/, '');
+}
+
+function scoreChunk(
+  chunk: IndexedChunk,
+  keywords: string[],
+  topic: RagTopic,
+): { score: number; matchedKeywords: string[] } {
   let score = 0;
   const matchedKeywords: string[] = [];
 
@@ -182,7 +170,7 @@ function scoreChunk(chunk: IndexedChunk, keywords: string[]): { score: number; m
     const normalizedKeyword = normalizeText(keyword);
     let keywordScore = 0;
     if (chunk.normalizedHeading === normalizedKeyword) {
-      keywordScore += 12;
+      keywordScore += 14;
     } else if (chunk.normalizedHeading.includes(normalizedKeyword)) {
       keywordScore += HEADING_ONLY_KEYWORDS.has(keyword) ? 10 : 8;
     }
@@ -197,19 +185,65 @@ function scoreChunk(chunk: IndexedChunk, keywords: string[]): { score: number; m
     }
   }
 
-  if (matchedKeywords.length > 0 && /论/.test(chunk.heading)) {
+  const topicBonusVal = chapterTopicBonus(chunk.heading, topic);
+  if (matchedKeywords.length > 0 && topicBonusVal > 0) {
+    score += topicBonusVal;
+  }
+
+  if (matchedKeywords.length > 0 && topicBonusVal > 0 && /论/.test(chunk.heading)) {
     score += 2;
   }
 
-  if (PREFACE_HINTS.some((hint) => chunk.heading.includes(hint))) {
-    score -= 6;
-  }
+  score += chapterDenyPenalty(chunk.heading);
 
   if (chunk.source === 'zipingzhenquan.md') {
     score += 1;
   }
 
+  if (chunk.text.length < 80) {
+    score -= 4;
+  }
+
   return { score, matchedKeywords };
+}
+
+function applyDiversityControls(sorted: BookRagSnippet[], topK: number): BookRagSnippet[] {
+  const result: BookRagSnippet[] = [];
+  const sourceCount = new Map<string, number>();
+  const headingCount = new Map<string, number>();
+  const seenTexts = new Set<string>();
+
+  const SOURCE_CAP = 3;
+  const HEADING_CAP = 2;
+
+  for (const item of sorted) {
+    const textKey = normalizeText(item.text);
+    if (seenTexts.has(textKey)) {
+      continue;
+    }
+
+    const sc = sourceCount.get(item.source) ?? 0;
+    if (sc >= SOURCE_CAP) {
+      continue;
+    }
+
+    const hBase = headingBase(item.heading);
+    const hc = headingCount.get(hBase) ?? 0;
+    if (hc >= HEADING_CAP) {
+      continue;
+    }
+
+    seenTexts.add(textKey);
+    sourceCount.set(item.source, sc + 1);
+    headingCount.set(hBase, hc + 1);
+    result.push(item);
+
+    if (result.length >= topK) {
+      break;
+    }
+  }
+
+  return result;
 }
 
 export async function retrieveBookRagSnippets(params: {
@@ -217,6 +251,7 @@ export async function retrieveBookRagSnippets(params: {
   queryText: string;
   topK: number;
   minScore?: number;
+  topic?: RagTopic;
 }): Promise<BookRagSnippet[]> {
   const trimmed = params.queryText.trim();
   if (!trimmed) {
@@ -233,11 +268,21 @@ export async function retrieveBookRagSnippets(params: {
     return [];
   }
 
+  const topic = params.topic ?? 'general';
+  const minScore = params.minScore ?? 7;
+
   const scored: BookRagSnippet[] = [];
   for (const ch of index.chunks) {
-    const { score, matchedKeywords } = scoreChunk(ch, keywords);
-    if (score < (params.minScore ?? 4)) {
+    const { score, matchedKeywords } = scoreChunk(ch, keywords, topic);
+    if (score < minScore) {
       continue;
+    }
+    if (matchedKeywords.length === 1 && matchedKeywords[0]!.length === 1) {
+      const kw = matchedKeywords[0]!;
+      const normalizedKw = normalizeText(kw);
+      if (ch.normalizedHeading !== normalizedKw) {
+        continue;
+      }
     }
     scored.push({
       source: ch.source,
@@ -249,16 +294,7 @@ export async function retrieveBookRagSnippets(params: {
   }
 
   scored.sort((a, b) => b.score - a.score);
-  const deduped: BookRagSnippet[] = [];
-  const seenTexts = new Set<string>();
-  for (const item of scored) {
-    const textKey = normalizeText(item.text);
-    if (seenTexts.has(textKey)) {
-      continue;
-    }
-    seenTexts.add(textKey);
-    deduped.push(item);
-  }
+
   const k = Math.max(1, Math.min(params.topK, 20));
-  return deduped.slice(0, k);
+  return applyDiversityControls(scored, k);
 }

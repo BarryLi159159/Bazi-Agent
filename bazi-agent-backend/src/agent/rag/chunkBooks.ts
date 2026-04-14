@@ -32,6 +32,8 @@ function splitOversized(part: string, file: string, partIndex: number, heading: 
   return out;
 }
 
+const SKIP_FILES = new Set(['穷通宝鉴.md']);
+
 export function loadBookChunksFromDir(booksDir: string): BookChunk[] {
   let names: string[];
   try {
@@ -42,7 +44,7 @@ export function loadBookChunksFromDir(booksDir: string): BookChunk[] {
 
   const chunks: BookChunk[] = [];
   for (const file of names) {
-    if (!file.endsWith('.md')) {
+    if (!file.endsWith('.md') || SKIP_FILES.has(file)) {
       continue;
     }
     const path = join(booksDir, file);

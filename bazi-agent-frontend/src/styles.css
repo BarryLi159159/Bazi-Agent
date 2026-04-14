@@ -1214,6 +1214,140 @@ textarea {
   color: #334155;
 }
 
+.personality-card {
+  border-left: 4px solid var(--accent);
+  transition: border-color 0.2s;
+}
+
+.personality-card.element-metal { border-left-color: #b0892a; }
+.personality-card.element-wood  { border-left-color: #2f9b63; }
+.personality-card.element-water { border-left-color: #2f6fcf; }
+.personality-card.element-fire  { border-left-color: #cf3f2f; }
+.personality-card.element-earth { border-left-color: #7b5a2c; }
+
+.personality-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.personality-headline {
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.personality-share-btn {
+  font-size: 0.78rem;
+  padding: 4px 12px;
+  flex-shrink: 0;
+}
+
+.personality-desc {
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--ink-0);
+  margin: 0 0 12px;
+}
+
+.personality-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 0.82rem;
+  color: var(--ink-1);
+}
+
+.personality-meta strong {
+  color: var(--ink-0);
+  margin-right: 4px;
+}
+
+.annual-fortune-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.fortune-ring-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  width: 90px;
+  height: 90px;
+}
+
+.fortune-ring-wrapper svg {
+  width: 90px;
+  height: 90px;
+  transform: rotate(-90deg);
+}
+
+.fortune-ring-bg {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 7;
+}
+
+.fortune-ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 7;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s ease;
+}
+
+.fortune-score {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.fortune-score-number {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink-0);
+}
+
+.fortune-score-label {
+  font-size: 0.68rem;
+  color: var(--ink-1);
+  margin-top: 2px;
+}
+
+.fortune-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.fortune-text h3 {
+  font-size: 1rem;
+  margin: 0 0 6px;
+}
+
+.fortune-summary {
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--ink-1);
+  margin: 0;
+}
+
+.insight-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 680px) {
+  .insight-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .diagnosis-overview-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1367,6 +1501,30 @@ textarea {
   line-height: 1.65;
   color: #374151;
   white-space: pre-wrap;
+}
+
+.quick-question-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.quick-question-chip {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  color: var(--ink-0);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.quick-question-chip:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .result-chat-composer {
@@ -1650,6 +1808,12 @@ textarea {
   border-radius: 999px;
   background: linear-gradient(90deg, #4f6de6, #61b0f1);
 }
+
+.element-bar-track i.element-metal { background: linear-gradient(90deg, #b0892a, #d4b44e); }
+.element-bar-track i.element-wood  { background: linear-gradient(90deg, #2f9b63, #52c48a); }
+.element-bar-track i.element-water { background: linear-gradient(90deg, #2f6fcf, #5a9de8); }
+.element-bar-track i.element-fire  { background: linear-gradient(90deg, #cf3f2f, #e8695a); }
+.element-bar-track i.element-earth { background: linear-gradient(90deg, #7b5a2c, #a8804e); }
 
 .gods-grid {
   display: grid;

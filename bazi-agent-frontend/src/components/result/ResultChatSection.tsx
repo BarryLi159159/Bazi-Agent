@@ -1,4 +1,19 @@
+import { useCallback } from 'react';
 import type { ChatMessage } from '../../types';
+
+const QUICK_QUESTIONS_ZH = [
+  '我今年运气怎么样？',
+  '我适合什么类型的工作？',
+  '我的感情什么时候会好转？',
+  '我的性格特点是什么？',
+];
+
+const QUICK_QUESTIONS_EN = [
+  'How is my luck this year?',
+  'What type of career suits me best?',
+  'When will my love life improve?',
+  'What are my personality traits?',
+];
 
 function roleLabel(role: ChatMessage['role'], t: Record<string, string>): string {
   if (role === 'user') {
@@ -19,6 +34,16 @@ export function ResultChatSection(props: {
   onSubmit: () => void;
 }) {
   const { t, messages, draft, sending, onDraftChange, onSubmit } = props;
+  const quickQuestions = t.quickQ1 ? QUICK_QUESTIONS_EN : QUICK_QUESTIONS_ZH;
+
+  const handleQuickQuestion = useCallback(
+    (question: string) => {
+      if (sending) return;
+      onDraftChange(question);
+      setTimeout(() => onSubmit(), 0);
+    },
+    [sending, onDraftChange, onSubmit],
+  );
 
   return (
     <section className="panel result-chat-panel">
@@ -30,6 +55,16 @@ export function ResultChatSection(props: {
       <p className="muted result-chat-intro">
         {t.diagnosisChatHint ?? '继续围绕同一张命盘追问，系统会沿用当前会话上下文继续分析。'}
       </p>
+
+      {messages.length === 0 && !sending ? (
+        <div className="quick-question-row">
+          {quickQuestions.map((q) => (
+            <button key={q} type="button" className="quick-question-chip" onClick={() => handleQuickQuestion(q)}>
+              {q}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="result-chat-thread">
         {messages.length === 0 ? (
