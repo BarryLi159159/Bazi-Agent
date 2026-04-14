@@ -196,10 +196,6 @@ export function BaziDiagnosisSection(props: {
               <small>{t.diagnosisTrajectoryLabel ?? '轨迹影响'}</small>
               <strong>{analysis.finalSummary.trajectoryImpact}</strong>
             </article>
-            <article className="diagnosis-summary-card">
-              <small>{t.diagnosisConfidenceLabel ?? '置信度'}</small>
-              <strong>{formatConfidence(analysis.confidence)}</strong>
-            </article>
           </div>
 
           <div className="diagnosis-card-grid">
@@ -207,54 +203,25 @@ export function BaziDiagnosisSection(props: {
               <h4>{t.diagnosisStructureCardTitle ?? '命局判断'}</h4>
               <div className="diagnosis-kv-grid">
                 <div className="diagnosis-kv">
-                  <small>{t.diagnosisStructureTypeLabel ?? '格局类型'}</small>
+                  <small>{t.diagnosisStructureTypeLabel ?? '格局'}</small>
                   <span>{structurePatternLabel(analysis.structureType.pattern)}</span>
                 </div>
                 <div className="diagnosis-kv">
-                  <small>{t.diagnosisDayMasterLabel ?? '日主承载'}</small>
+                  <small>{t.diagnosisDayMasterLabel ?? '日主'}</small>
                   <span>{dayMasterStrengthLabel(analysis.capacity.dayMasterStrength)}</span>
-                </div>
-                <div className="diagnosis-kv">
-                  <small>{t.diagnosisExtremeLabel ?? '是否极端'}</small>
-                  <span>{analysis.structureType.isExtreme ? (t.diagnosisYes ?? '是') : (t.diagnosisNo ?? '否')}</span>
                 </div>
                 <div className="diagnosis-kv">
                   <small>{t.diagnosisStabilityLabel ?? '稳定性'}</small>
                   <span>{stabilityLabel(analysis.stability.level)}</span>
                 </div>
+                <div className="diagnosis-kv">
+                  <small>{t.diagnosisRescueLabel ?? '可救性'}</small>
+                  <span>{analysis.rescue.rescuable ? (t.diagnosisRescuable ?? '可救') : (t.diagnosisNotRescuable ?? '难救')}</span>
+                </div>
               </div>
-              <p>{analysis.capacity.loadBearing}</p>
-              <p>{analysis.capacity.note}</p>
-              <p>{analysis.structureType.extremeNote}</p>
-              <p>{analysis.structureType.followAdjustment}</p>
             </article>
 
             <article className="diagnosis-card">
-              <h4>{t.diagnosisFailureCardTitle ?? '病点与救应'}</h4>
-              <div className="diagnosis-kv">
-                <small>{t.diagnosisPrimaryFailureLabel ?? '主要病点'}</small>
-                <span>{analysis.failure.primaryFailure}</span>
-              </div>
-              <div className="diagnosis-kv">
-                <small>{t.diagnosisRescueLabel ?? '是否可救'}</small>
-                <span>{analysis.rescue.rescuable ? (t.diagnosisRescuable ?? '可救') : (t.diagnosisNotRescuable ?? '难救')}</span>
-              </div>
-              <p>{analysis.rescue.rescueReason}</p>
-              <div className="diagnosis-section-block">
-                <small>{t.diagnosisImbalanceLabel ?? '五行失衡'}</small>
-                {renderTagList(analysis.failure.fiveElementImbalance, t.diagnosisNone ?? '暂无')}
-              </div>
-              <div className="diagnosis-section-block">
-                <small>{t.diagnosisClashesLabel ?? '冲合刑害'}</small>
-                {renderBulletList(analysis.failure.clashes, t.diagnosisNone ?? '暂无')}
-              </div>
-              <div className="diagnosis-section-block">
-                <small>{t.diagnosisBreaksLabel ?? '结构破点'}</small>
-                {renderBulletList(analysis.failure.structuralBreaks, t.diagnosisNone ?? '暂无')}
-              </div>
-            </article>
-
-            <article className="diagnosis-card diagnosis-card-wide">
               <h4>{t.diagnosisUsefulGodCardTitle ?? '用神方案'}</h4>
               <div className="diagnosis-double-column">
                 <div className="diagnosis-section-block">
@@ -265,49 +232,16 @@ export function BaziDiagnosisSection(props: {
                   <small>{t.diagnosisUsefulGodSupportLabel ?? '辅用神'}</small>
                   {renderTagList(analysis.usefulGods.support, t.diagnosisNone ?? '暂无')}
                 </div>
+                <div className="diagnosis-section-block">
+                  <small>{t.diagnosisFavorableLabel ?? '喜'}</small>
+                  {renderTagList(analysis.preferences.favorable, t.diagnosisNone ?? '暂无')}
+                </div>
+                <div className="diagnosis-section-block">
+                  <small>{t.diagnosisUnfavorableLabel ?? '忌'}</small>
+                  {renderTagList(analysis.preferences.unfavorable, t.diagnosisNone ?? '暂无')}
+                </div>
               </div>
               <p>{analysis.usefulGods.rationale}</p>
-              <div className="diagnosis-kv-grid">
-                <div className="diagnosis-kv">
-                  <small>{t.diagnosisUsefulGodCandidateLabel ?? '候选用神'}</small>
-                  <span>{joinItems(analysis.rescue.candidateUsefulGods)}</span>
-                </div>
-                <div className="diagnosis-kv">
-                  <small>{t.diagnosisUsefulGodEffectiveLabel ?? '是否得力'}</small>
-                  <span>{analysis.usefulGodEffectiveness.effective ? (t.diagnosisEffective ?? '得力') : (t.diagnosisIneffective ?? '不得力')}</span>
-                </div>
-                <div className="diagnosis-kv">
-                  <small>{t.diagnosisUsefulGodRootedLabel ?? '是否有根'}</small>
-                  <span>{analysis.usefulGodEffectiveness.rooted ? (t.diagnosisYes ?? '是') : (t.diagnosisNo ?? '否')}</span>
-                </div>
-                <div className="diagnosis-kv">
-                  <small>{t.diagnosisUsefulGodConstraintLabel ?? '是否受制'}</small>
-                  <span>{analysis.usefulGodEffectiveness.constrained ? (t.diagnosisYes ?? '是') : (t.diagnosisNo ?? '否')}</span>
-                </div>
-              </div>
-              <p>{analysis.usefulGodEffectiveness.reason}</p>
-            </article>
-
-            <article className="diagnosis-card">
-              <h4>{t.diagnosisPreferenceCardTitle ?? '喜忌与风险'}</h4>
-              <div className="diagnosis-section-block">
-                <small>{t.diagnosisFavorableLabel ?? '喜神/有利因素'}</small>
-                {renderTagList(analysis.preferences.favorable, t.diagnosisNone ?? '暂无')}
-              </div>
-              <div className="diagnosis-section-block">
-                <small>{t.diagnosisUnfavorableLabel ?? '忌神/不利因素'}</small>
-                {renderTagList(analysis.preferences.unfavorable, t.diagnosisNone ?? '暂无')}
-              </div>
-              <p>{analysis.preferences.rationale}</p>
-              <div className="diagnosis-section-block">
-                <small>{t.diagnosisWeakPointLabel ?? '薄弱点'}</small>
-                {renderBulletList(analysis.stability.weakPoints, t.diagnosisNone ?? '暂无')}
-              </div>
-              <div className="diagnosis-section-block">
-                <small>{t.diagnosisCollapseLabel ?? '败局触发条件'}</small>
-                {renderBulletList(analysis.failureMode.collapseTriggers, t.diagnosisNone ?? '暂无')}
-              </div>
-              <p>{analysis.failureMode.collapseCondition}</p>
             </article>
 
             <article className="diagnosis-card">
@@ -319,19 +253,6 @@ export function BaziDiagnosisSection(props: {
                 </div>
               </div>
               <p>{analysis.luckFlow.summary}</p>
-              <div className="diagnosis-section-block">
-                <small>{t.diagnosisLuckEvidenceLabel ?? '运势证据'}</small>
-                {renderBulletList(analysis.luckFlow.evidence, t.diagnosisNone ?? '暂无')}
-              </div>
-              <div className="diagnosis-section-block">
-                <small>{t.diagnosisPositiveLoopLabel ?? '正向循环'}</small>
-                {renderBulletList(analysis.stability.positiveLoops, t.diagnosisNone ?? '暂无')}
-              </div>
-            </article>
-
-            <article className="diagnosis-card diagnosis-card-wide">
-              <h4>{t.diagnosisReasoningCardTitle ?? '诊断摘要'}</h4>
-              {renderBulletList(analysis.reasoningSummary, t.diagnosisNone ?? '暂无')}
             </article>
           </div>
         </>

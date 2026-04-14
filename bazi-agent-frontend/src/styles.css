@@ -1067,10 +1067,8 @@ textarea {
 
 .diagnosis-panel {
   display: grid;
-  gap: 14px;
-  background:
-    radial-gradient(circle at top right, rgba(95, 63, 223, 0.08), transparent 28%),
-    linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+  gap: 20px;
+  background: var(--panel);
 }
 
 .diagnosis-head-copy {
@@ -1179,11 +1177,10 @@ textarea {
 }
 
 .diagnosis-lead-card {
-  border: 1px solid #e6eaf3;
+  border: none;
   border-radius: 16px;
-  padding: 14px 16px;
-  background: #fff;
-  box-shadow: 0 8px 20px rgba(30, 41, 59, 0.04);
+  padding: 20px 22px;
+  background: linear-gradient(135deg, #f8f9fe 0%, #f1f3fb 100%);
 }
 
 .diagnosis-lead-card small,
@@ -1199,19 +1196,20 @@ textarea {
 .diagnosis-lead {
   margin: 0;
   white-space: pre-wrap;
-  line-height: 1.7;
-  color: #1f2937;
-}
-
-.diagnosis-evidence-inline {
-  margin: 2px 0 0;
-  color: #657084;
-  line-height: 1.6;
+  line-height: 1.8;
+  color: var(--ink-0);
   font-size: 0.95rem;
 }
 
+.diagnosis-evidence-inline {
+  margin: 8px 0 0;
+  color: var(--ink-1);
+  line-height: 1.6;
+  font-size: 0.85rem;
+}
+
 .diagnosis-evidence-inline strong {
-  color: #334155;
+  color: var(--ink-0);
 }
 
 .personality-card {
@@ -1350,39 +1348,42 @@ textarea {
 
 .diagnosis-overview-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .diagnosis-summary-card {
-  border: 1px solid #e7ebf3;
-  border-radius: 16px;
-  padding: 14px;
-  background:
-    radial-gradient(circle at top right, rgba(60, 149, 239, 0.09), transparent 40%),
-    linear-gradient(180deg, #fdfefe 0%, #ffffff 100%);
+  border-radius: 14px;
+  padding: 16px;
+  background: #f8f9fe;
+  border: none;
+}
+
+.diagnosis-summary-card small {
+  text-transform: none;
+  font-weight: 600;
 }
 
 .diagnosis-summary-card strong {
-  color: #162033;
-  font-size: 1rem;
-  line-height: 1.5;
+  color: var(--ink-0);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  font-weight: 500;
 }
 
 .diagnosis-card-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 16px;
 }
 
 .diagnosis-card {
-  border: 1px solid #e6eaf2;
-  border-radius: 16px;
-  padding: 14px;
-  background: #fff;
-  box-shadow: 0 8px 22px rgba(18, 32, 62, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 20px;
+  background: var(--panel);
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .diagnosis-card-wide {
@@ -1391,33 +1392,36 @@ textarea {
 
 .diagnosis-card h4 {
   margin: 0;
-  font-size: 1rem;
-  color: #1b2432;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink-0);
 }
 
 .diagnosis-card p {
   margin: 0;
-  line-height: 1.6;
-  color: #3f4756;
+  line-height: 1.7;
+  color: var(--ink-1);
+  font-size: 0.9rem;
 }
 
 .diagnosis-kv-grid,
 .diagnosis-double-column {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .diagnosis-kv {
-  border: 1px solid #edf1f6;
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: #fafcff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  background: #f4f6fa;
 }
 
 .diagnosis-kv span {
-  color: #1f2937;
+  color: var(--ink-0);
   line-height: 1.4;
+  font-size: 0.88rem;
 }
 
 .diagnosis-section-block {
@@ -1428,19 +1432,19 @@ textarea {
 .diagnosis-tag-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .diagnosis-tag {
   display: inline-flex;
   align-items: center;
-  border: 1px solid #ddd9fb;
-  background: #f4f1ff;
-  color: #4d42a2;
-  border-radius: 999px;
-  padding: 5px 10px;
-  font-size: 0.84rem;
-  font-weight: 700;
+  border: none;
+  background: #eeecfb;
+  color: #5b4fb0;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .diagnosis-list {
@@ -1448,11 +1452,13 @@ textarea {
   padding-left: 18px;
   display: grid;
   gap: 6px;
-  color: #3b4454;
+  color: var(--ink-1);
+  font-size: 0.9rem;
 }
 
 .diagnosis-empty {
-  color: #8a94a5;
+  color: var(--ink-1);
+  font-size: 0.88rem;
 }
 
 .result-chat-panel {

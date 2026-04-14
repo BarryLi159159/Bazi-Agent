@@ -161,6 +161,26 @@ function normalizeStructuredAnalysisPayload(raw: unknown): Record<string, unknow
     },
     evidenceSources: Array.isArray(obj['evidenceSources']) ? obj['evidenceSources'] : [],
     confidence: Math.min(1, Math.max(0, pickNumber(obj['confidence'], 0.6))),
+    ...(isRecord(obj['personalitySnapshot'])
+      ? {
+          personalitySnapshot: {
+            headline: pickString(obj['personalitySnapshot']['headline'], '命格速览'),
+            description: pickString(obj['personalitySnapshot']['description'], '根据命盘综合判断的性格特点。'),
+            luckyColor: pickString(obj['personalitySnapshot']['luckyColor'], '未知'),
+            luckyDirection: pickString(obj['personalitySnapshot']['luckyDirection'], '未知'),
+            yearKeyword: pickString(obj['personalitySnapshot']['yearKeyword'], '调整'),
+          },
+        }
+      : {}),
+    ...(isRecord(obj['annualFortune'])
+      ? {
+          annualFortune: {
+            year: pickNumber(obj['annualFortune']['year'], new Date().getFullYear()),
+            score: Math.min(100, Math.max(0, pickNumber(obj['annualFortune']['score'], 60))),
+            summary: pickString(obj['annualFortune']['summary'], '今年整体运势需要结合命盘与流转综合判断。'),
+          },
+        }
+      : {}),
   };
 }
 
@@ -406,6 +426,22 @@ export class RuleBasedModelProvider implements ModelProvider {
       },
       evidenceSources: [],
       confidence: hasBazi ? 0.72 : 0.46,
+      personalitySnapshot: {
+        headline: hasBazi ? '沉稳内敛型' : '待补盘',
+        description: hasBazi
+          ? '你给人的第一印象是稳重可靠，做事喜欢先想清楚再动手。适合需要耐心和深度思考的领域。'
+          : '目前还缺少完整命盘信息，暂时无法生成准确的性格描述。',
+        luckyColor: hasBazi ? '蓝色' : '未知',
+        luckyDirection: hasBazi ? '北方' : '未知',
+        yearKeyword: hasBazi ? '稳中求进' : '补盘优先',
+      },
+      annualFortune: {
+        year: new Date().getFullYear(),
+        score: hasBazi ? 62 : 50,
+        summary: hasBazi
+          ? '今年整体偏平稳，适合打基础、做规划，不宜冒进。'
+          : '缺少完整命盘，年度运势评估可靠度偏低。',
+      },
     };
   }
 
