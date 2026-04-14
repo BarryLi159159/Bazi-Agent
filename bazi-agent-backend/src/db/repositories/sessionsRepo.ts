@@ -40,33 +40,6 @@ export async function touchSession(sessionId: string): Promise<void> {
   );
 }
 
-export interface SessionSnapshotInput {
-  displayName?: string | null;
-  gender?: number | null;
-  birthSolar?: string | null;
-  baziJson?: unknown;
-}
-
-export async function updateSessionSnapshot(sessionId: string, snap: SessionSnapshotInput): Promise<void> {
-  await pool.query(
-    `
-    UPDATE chat_sessions
-    SET snapshot_display_name = COALESCE($2, snapshot_display_name),
-        snapshot_gender       = COALESCE($3, snapshot_gender),
-        snapshot_birth_solar  = COALESCE($4, snapshot_birth_solar),
-        snapshot_bazi_json    = COALESCE($5, snapshot_bazi_json)
-    WHERE id = $1;
-    `,
-    [
-      sessionId,
-      snap.displayName ?? null,
-      snap.gender ?? null,
-      snap.birthSolar ?? null,
-      snap.baziJson ? JSON.stringify(snap.baziJson) : null,
-    ],
-  );
-}
-
 export async function deleteSessionById(sessionId: string): Promise<boolean> {
   const result: QueryResult = await pool.query(`DELETE FROM chat_sessions WHERE id = $1;`, [sessionId]);
   return (result.rowCount ?? 0) > 0;
@@ -92,10 +65,10 @@ export interface SessionListRow {
   updated_at: string;
   message_count: number;
   last_message: string | null;
-  resolved_display_name: string | null;
-  resolved_gender: unknown;
-  resolved_birth_solar: unknown;
-  resolved_bazi_json: unknown;
+  user_display_name: string | null;
+  user_gender: unknown;
+  user_birth_solar_datetime: unknown;
+  user_bazi_json: unknown;
 }
 
 /** 按 external_id 列出会话，并与 users 行 JOIN */
@@ -116,10 +89,10 @@ export async function listSessionsByExternalId(externalId: string, limit = 20): 
         ORDER BY m2.created_at DESC
         LIMIT 1
       ) AS last_message,
-      COALESCE(s.snapshot_display_name, u.display_name) AS resolved_display_name,
-      COALESCE(s.snapshot_gender, u.gender) AS resolved_gender,
-      COALESCE(s.snapshot_birth_solar, u.birth_solar_datetime::text) AS resolved_birth_solar,
-      COALESCE(s.snapshot_bazi_json, u.bazi_json) AS resolved_bazi_json
+      u.display_name AS user_display_name,
+      u.gender AS user_gender,
+      u.birth_solar_datetime AS user_birth_solar_datetime,
+      u.bazi_json AS user_bazi_json
     FROM chat_sessions s
     INNER JOIN users u ON u.id = s.user_id
     WHERE u.external_id = $1

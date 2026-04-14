@@ -445,8 +445,6 @@ body {
   flex: 0 0 340px;
   position: sticky;
   top: 88px;
-  max-height: calc(100vh - 120px);
-  overflow: auto;
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 14px 12px;
@@ -464,43 +462,8 @@ body {
   line-height: 1.35;
 }
 
-.input-history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
 .input-record-card-wrap {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  width: 100%;
-}
-
-.input-record-card-wrap .input-record-card {
-  flex: 1;
-  min-width: 0;
-}
-
-.input-record-delete {
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
-  border: 1px solid #e8ecf4;
-  border-radius: 10px;
-  background: #fff;
-  color: #9ca3af;
-  font-size: 1.35rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-  font-weight: 700;
-}
-
-.input-record-delete:hover {
-  border-color: #fecaca;
-  color: #dc2626;
-  background: #fff5f5;
+  margin-top: 4px;
 }
 
 .input-record-kv-summary .input-record-summary-text {

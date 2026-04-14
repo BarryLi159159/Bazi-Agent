@@ -13,7 +13,6 @@ export function InputStep(props: {
   sessions: SessionSummary[];
   loadingSessions: boolean;
   onSelectSession: (sessionId: string) => void;
-  onDeleteSession: (sessionId: string) => void;
   setProfile: (updater: (prev: UserProfileForm) => UserProfileForm) => void;
   setCalendarType: (value: 'solar' | 'lunar') => void;
   setBirthDate: (value: string) => void;
@@ -32,7 +31,6 @@ export function InputStep(props: {
     sessions,
     loadingSessions,
     onSelectSession,
-    onDeleteSession,
     setProfile,
     setCalendarType,
     setBirthDate,
@@ -97,84 +95,71 @@ export function InputStep(props: {
         <p className="muted input-history-hint">{t.recordsHint}</p>
         {loadingSessions ? <p className="muted">...</p> : null}
         {!loadingSessions && sessions.length === 0 ? <p className="muted">{t.noCases}</p> : null}
-        <div className="input-history-list">
-          {sessions.map((s) => {
-            const name = s.record_name?.trim() || (language === 'zh' ? '未命名' : 'Untitled');
-            const baziText = s.record_bazi?.trim() ?? '';
-            const parsed = baziText ? parseBaziPillars(baziText) : null;
-            const showSummary =
-              !baziText && s.last_message_preview && s.last_message_preview.trim().length > 0;
-            return (
-              <div key={s.id} className="input-record-card-wrap">
-                <button type="button" className="input-record-card" onClick={() => onSelectSession(s.id)}>
-                <div className="input-record-fields">
-                  <div className="input-record-kv">
-                    <span className="input-record-lbl">{t.labelName}</span>
-                    <span className="input-record-val input-record-val-strong">{name}</span>
-                  </div>
-                  <div className="input-record-kv">
-                    <span className="input-record-lbl">{t.labelBaziBlock}</span>
-                    <div className="input-record-eight" aria-label={t.labelBaziBlock}>
-                      {parsed ? (
-                        <>
-                          <div className="input-record-stems">
-                            {parsed.stems.map((c, i) => (
-                              <span key={`${s.id}-s-${i}`} className={`input-record-char ${wuxingClass(c, 'stem')}`}>
-                                {c}
-                              </span>
-                            ))}
-                          </div>
-                          <div className="input-record-branches">
-                            {parsed.branches.map((c, i) => (
-                              <span key={`${s.id}-b-${i}`} className={`input-record-char ${wuxingClass(c, 'branch')}`}>
-                                {c}
-                              </span>
-                            ))}
-                          </div>
-                        </>
-                      ) : (
-                        <span className="input-record-empty">—</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="input-record-kv input-record-kv-inline">
-                    <span className="input-record-lbl">{t.labelGender}</span>
-                    <span className="input-record-val">{genderLabel(s.record_gender)}</span>
-                  </div>
-                  <div className="input-record-kv">
-                    <span className="input-record-lbl">{t.labelBirth}</span>
-                    <span className="input-record-val input-record-val-date">{formatSolarLabel(s.record_birth_solar)}</span>
-                  </div>
-                  {showSummary ? (
-                    <div className="input-record-kv input-record-kv-summary">
-                      <span className="input-record-lbl">{t.recordSummaryLabel}</span>
-                      <span className="input-record-val input-record-summary-text">{s.last_message_preview}</span>
-                    </div>
-                  ) : null}
+        {(() => {
+          const s = sessions[0];
+          if (!s) return null;
+          const name = s.record_name?.trim() || (language === 'zh' ? '未命名' : 'Untitled');
+          const baziText = s.record_bazi?.trim() ?? '';
+          const parsed = baziText ? parseBaziPillars(baziText) : null;
+          const showSummary =
+            !baziText && s.last_message_preview && s.last_message_preview.trim().length > 0;
+          return (
+            <div className="input-record-card-wrap">
+              <button type="button" className="input-record-card" onClick={() => onSelectSession(s.id)}>
+              <div className="input-record-fields">
+                <div className="input-record-kv">
+                  <span className="input-record-lbl">{t.labelName}</span>
+                  <span className="input-record-val input-record-val-strong">{name}</span>
                 </div>
-                {s.record_zodiac ? (
-                  <div className="input-record-zodiac" title={s.record_zodiac}>
-                    <span className="input-record-zodiac-inner">{s.record_zodiac}</span>
+                <div className="input-record-kv">
+                  <span className="input-record-lbl">{t.labelBaziBlock}</span>
+                  <div className="input-record-eight" aria-label={t.labelBaziBlock}>
+                    {parsed ? (
+                      <>
+                        <div className="input-record-stems">
+                          {parsed.stems.map((c, i) => (
+                            <span key={`s-${i}`} className={`input-record-char ${wuxingClass(c, 'stem')}`}>
+                              {c}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="input-record-branches">
+                          {parsed.branches.map((c, i) => (
+                            <span key={`b-${i}`} className={`input-record-char ${wuxingClass(c, 'branch')}`}>
+                              {c}
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <span className="input-record-empty">—</span>
+                    )}
+                  </div>
+                </div>
+                <div className="input-record-kv input-record-kv-inline">
+                  <span className="input-record-lbl">{t.labelGender}</span>
+                  <span className="input-record-val">{genderLabel(s.record_gender)}</span>
+                </div>
+                <div className="input-record-kv">
+                  <span className="input-record-lbl">{t.labelBirth}</span>
+                  <span className="input-record-val input-record-val-date">{formatSolarLabel(s.record_birth_solar)}</span>
+                </div>
+                {showSummary ? (
+                  <div className="input-record-kv input-record-kv-summary">
+                    <span className="input-record-lbl">{t.recordSummaryLabel}</span>
+                    <span className="input-record-val input-record-summary-text">{s.last_message_preview}</span>
                   </div>
                 ) : null}
-                </button>
-                <button
-                  type="button"
-                  className="input-record-delete"
-                  aria-label={t.deleteRecord}
-                  title={t.deleteRecord}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onDeleteSession(s.id);
-                  }}
-                >
-                  ×
-                </button>
               </div>
-            );
-          })}
-        </div>
+              {s.record_zodiac ? (
+                <div className="input-record-zodiac" title={s.record_zodiac}>
+                  <span className="input-record-zodiac-inner">{s.record_zodiac}</span>
+                </div>
+              ) : null}
+              </button>
+            </div>
+          );
+        })()}
       </aside>
 
       <div className="input-main-column">

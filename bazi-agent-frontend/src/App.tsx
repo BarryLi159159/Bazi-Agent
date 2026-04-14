@@ -624,7 +624,6 @@ export function App() {
             sessions={sessions}
             loadingSessions={loadingSessions}
             onSelectSession={(sessionId) => void openSessionFromHistory(sessionId)}
-            onDeleteSession={(sessionId) => void handleDeleteSession(sessionId)}
             setProfile={setProfile}
             setCalendarType={setCalendarType}
             setBirthDate={setBirthDate}

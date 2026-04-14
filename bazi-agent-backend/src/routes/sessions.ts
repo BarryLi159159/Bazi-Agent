@@ -66,11 +66,11 @@ sessionsRouter.get('/', async (req, res) => {
       message_count: row.message_count,
       last_message: row.last_message,
       last_message_preview: preview || null,
-      record_name: row.resolved_display_name?.trim() || null,
-      record_gender: normalizeGender(row.resolved_gender),
-      record_birth_solar: toIsoOrNull(row.resolved_birth_solar),
-      record_bazi: extractBaziSummary(row.resolved_bazi_json),
-      record_zodiac: extractZodiac(row.resolved_bazi_json),
+      record_name: row.user_display_name?.trim() || null,
+      record_gender: normalizeGender(row.user_gender),
+      record_birth_solar: toIsoOrNull(row.user_birth_solar_datetime),
+      record_bazi: extractBaziSummary(row.user_bazi_json),
+      record_zodiac: extractZodiac(row.user_bazi_json),
     };
   });
 

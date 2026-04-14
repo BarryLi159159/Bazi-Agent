@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { config } from '../config.js';
 import { createMemory, listRecentMemories } from '../db/repositories/memoriesRepo.js';
 import { createMessage, listRecentMessagesBySession } from '../db/repositories/messagesRepo.js';
-import { createSession, getSessionById, touchSession, updateSessionSnapshot } from '../db/repositories/sessionsRepo.js';
+import { createSession, getSessionById, touchSession } from '../db/repositories/sessionsRepo.js';
 import { findUserSecret } from '../db/repositories/userSecretsRepo.js';
 import { upsertUser, updateUserBazi } from '../db/repositories/usersRepo.js';
 import { decryptSecret } from '../security/secretsCrypto.js';
@@ -284,7 +284,6 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     profileJson: input.userProfile?.extra,
   });
 
-  const isNewSession = !input.sessionId;
   const session = input.sessionId
     ? await getSessionById(input.sessionId)
     : await createSession(user.id, createSessionTitle(input.message));
@@ -366,15 +365,6 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
       const detail = lastBaziError instanceof Error ? `: ${lastBaziError.message}` : '';
       throw new BadRequestError(`八字排盘失败${detail}`);
     }
-  }
-
-  if (isNewSession || baziComputed) {
-    await updateSessionSnapshot(session.id, {
-      displayName: activeUser.display_name,
-      gender: activeUser.gender,
-      birthSolar: activeUser.birth_solar_datetime,
-      baziJson: activeUser.bazi_json,
-    });
   }
 
   const [recentMessages, memories, transit] = await Promise.all([
