@@ -36,6 +36,9 @@ export function ResultChatSection(props: {
   const { t, messages, draft, sending, onDraftChange, onSubmit } = props;
   const quickQuestions = t.quickQ1 ? QUICK_QUESTIONS_EN : QUICK_QUESTIONS_ZH;
 
+  const userFollowUps = messages.filter((m) => m.role === 'user').length;
+  const showQuickQuestions = userFollowUps <= 1 && !sending;
+
   const handleQuickQuestion = useCallback(
     (question: string) => {
       if (sending) return;
@@ -56,7 +59,7 @@ export function ResultChatSection(props: {
         {t.diagnosisChatHint ?? '继续围绕同一张命盘追问，系统会沿用当前会话上下文继续分析。'}
       </p>
 
-      {messages.length === 0 && !sending ? (
+      {showQuickQuestions ? (
         <div className="quick-question-row">
           {quickQuestions.map((q) => (
             <button key={q} type="button" className="quick-question-chip" onClick={() => handleQuickQuestion(q)}>
