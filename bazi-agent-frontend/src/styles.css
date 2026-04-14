@@ -1246,20 +1246,7 @@ textarea {
   font-size: 0.95rem;
   line-height: 1.7;
   color: var(--ink-0);
-  margin: 0 0 12px;
-}
-
-.personality-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  font-size: 0.82rem;
-  color: var(--ink-1);
-}
-
-.personality-meta strong {
-  color: var(--ink-0);
-  margin-right: 4px;
+  margin: 0;
 }
 
 .annual-fortune-card {

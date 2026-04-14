@@ -33,7 +33,7 @@ export function PersonalityCard(props: {
   const [copied, setCopied] = useState(false);
 
   const handleShare = useCallback(() => {
-    const text = `${snapshot.headline}\n${snapshot.description}\n幸运色：${snapshot.luckyColor} | 幸运方位：${snapshot.luckyDirection} | 年度关键词：${snapshot.yearKeyword}`;
+    const text = `${snapshot.headline}\n${snapshot.description}`;
     if (typeof navigator !== 'undefined' && navigator.share) {
       void navigator.share({ title: snapshot.headline, text });
     } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -53,11 +53,6 @@ export function PersonalityCard(props: {
         </button>
       </div>
       <p className="personality-desc">{snapshot.description}</p>
-      <div className="personality-meta">
-        <span><strong>{t.personalityColor ?? '幸运色'}</strong> {snapshot.luckyColor}</span>
-        <span><strong>{t.personalityDirection ?? '方位'}</strong> {snapshot.luckyDirection}</span>
-        <span><strong>{t.personalityKeyword ?? '年度词'}</strong> {snapshot.yearKeyword}</span>
-      </div>
     </section>
   );
 }

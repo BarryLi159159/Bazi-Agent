@@ -90,9 +90,6 @@ export interface StructuredAnalysis {
   personalitySnapshot?: {
     headline: string;
     description: string;
-    luckyColor: string;
-    luckyDirection: string;
-    yearKeyword: string;
   };
   annualFortune?: {
     year: number;
