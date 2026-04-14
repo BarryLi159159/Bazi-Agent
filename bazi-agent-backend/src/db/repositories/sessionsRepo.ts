@@ -6,57 +6,16 @@ function mapRow(row: Record<string, unknown>): DbChatSession {
   return row as unknown as DbChatSession;
 }
 
-export interface CreateSessionOpts {
-  userId: string;
-  title?: string;
-  snapshotDisplayName?: string | null;
-  snapshotGender?: number | null;
-  snapshotBirthSolar?: string | null;
-  snapshotBaziJson?: unknown;
-}
-
-export async function createSession(opts: CreateSessionOpts): Promise<DbChatSession> {
+export async function createSession(userId: string, title?: string): Promise<DbChatSession> {
   const result: QueryResult = await pool.query(
     `
-    INSERT INTO chat_sessions (user_id, title, snapshot_display_name, snapshot_gender, snapshot_birth_solar, snapshot_bazi_json)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO chat_sessions (user_id, title)
+    VALUES ($1, $2)
     RETURNING *;
     `,
-    [
-      opts.userId,
-      opts.title ?? null,
-      opts.snapshotDisplayName ?? null,
-      opts.snapshotGender ?? null,
-      opts.snapshotBirthSolar ?? null,
-      opts.snapshotBaziJson ? JSON.stringify(opts.snapshotBaziJson) : null,
-    ],
+    [userId, title ?? null],
   );
   return mapRow(result.rows[0]);
-}
-
-export async function updateSessionSnapshot(sessionId: string, snapshot: {
-  displayName?: string | null;
-  gender?: number | null;
-  birthSolar?: string | null;
-  baziJson?: unknown;
-}): Promise<void> {
-  await pool.query(
-    `
-    UPDATE chat_sessions
-    SET snapshot_display_name = COALESCE($2, snapshot_display_name),
-        snapshot_gender       = COALESCE($3, snapshot_gender),
-        snapshot_birth_solar  = COALESCE($4, snapshot_birth_solar),
-        snapshot_bazi_json    = COALESCE($5, snapshot_bazi_json)
-    WHERE id = $1;
-    `,
-    [
-      sessionId,
-      snapshot.displayName ?? null,
-      snapshot.gender ?? null,
-      snapshot.birthSolar ?? null,
-      snapshot.baziJson ? JSON.stringify(snapshot.baziJson) : null,
-    ],
-  );
 }
 
 export async function getSessionById(sessionId: string): Promise<DbChatSession | null> {
@@ -78,6 +37,33 @@ export async function touchSession(sessionId: string): Promise<void> {
     WHERE id = $1;
     `,
     [sessionId],
+  );
+}
+
+export interface SessionSnapshotInput {
+  displayName?: string | null;
+  gender?: number | null;
+  birthSolar?: string | null;
+  baziJson?: unknown;
+}
+
+export async function updateSessionSnapshot(sessionId: string, snap: SessionSnapshotInput): Promise<void> {
+  await pool.query(
+    `
+    UPDATE chat_sessions
+    SET snapshot_display_name = COALESCE($2, snapshot_display_name),
+        snapshot_gender       = COALESCE($3, snapshot_gender),
+        snapshot_birth_solar  = COALESCE($4, snapshot_birth_solar),
+        snapshot_bazi_json    = COALESCE($5, snapshot_bazi_json)
+    WHERE id = $1;
+    `,
+    [
+      sessionId,
+      snap.displayName ?? null,
+      snap.gender ?? null,
+      snap.birthSolar ?? null,
+      snap.baziJson ? JSON.stringify(snap.baziJson) : null,
+    ],
   );
 }
 
@@ -106,13 +92,13 @@ export interface SessionListRow {
   updated_at: string;
   message_count: number;
   last_message: string | null;
-  user_display_name: string | null;
-  user_gender: unknown;
-  user_birth_solar_datetime: unknown;
-  user_bazi_json: unknown;
+  resolved_display_name: string | null;
+  resolved_gender: unknown;
+  resolved_birth_solar: unknown;
+  resolved_bazi_json: unknown;
 }
 
-/** 按 external_id 列出会话，优先使用 session 快照，回退到 user 行 */
+/** 按 external_id 列出会话，并与 users 行 JOIN */
 export async function listSessionsByExternalId(externalId: string, limit = 20): Promise<SessionListRow[]> {
   const result: QueryResult = await pool.query(
     `
@@ -130,10 +116,10 @@ export async function listSessionsByExternalId(externalId: string, limit = 20): 
         ORDER BY m2.created_at DESC
         LIMIT 1
       ) AS last_message,
-      COALESCE(s.snapshot_display_name, u.display_name) AS user_display_name,
-      COALESCE(s.snapshot_gender, u.gender) AS user_gender,
-      COALESCE(s.snapshot_birth_solar, u.birth_solar_datetime) AS user_birth_solar_datetime,
-      COALESCE(s.snapshot_bazi_json, u.bazi_json) AS user_bazi_json
+      COALESCE(s.snapshot_display_name, u.display_name) AS resolved_display_name,
+      COALESCE(s.snapshot_gender, u.gender) AS resolved_gender,
+      COALESCE(s.snapshot_birth_solar, u.birth_solar_datetime::text) AS resolved_birth_solar,
+      COALESCE(s.snapshot_bazi_json, u.bazi_json) AS resolved_bazi_json
     FROM chat_sessions s
     INNER JOIN users u ON u.id = s.user_id
     WHERE u.external_id = $1

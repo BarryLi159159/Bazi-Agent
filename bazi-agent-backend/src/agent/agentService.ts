@@ -285,16 +285,9 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
   });
 
   const isNewSession = !input.sessionId;
-  const session = isNewSession
-    ? await createSession({
-        userId: user.id,
-        title: createSessionTitle(input.message),
-        snapshotDisplayName: user.display_name,
-        snapshotGender: user.gender,
-        snapshotBirthSolar: user.birth_solar_datetime ? new Date(user.birth_solar_datetime).toISOString() : null,
-        snapshotBaziJson: user.bazi_json,
-      })
-    : await getSessionById(input.sessionId!);
+  const session = input.sessionId
+    ? await getSessionById(input.sessionId)
+    : await createSession(user.id, createSessionTitle(input.message));
 
   if (!session) {
     throw new BadRequestError('sessionId 不存在');
@@ -373,15 +366,15 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
       const detail = lastBaziError instanceof Error ? `: ${lastBaziError.message}` : '';
       throw new BadRequestError(`八字排盘失败${detail}`);
     }
+  }
 
-    if (baziComputed && isNewSession) {
-      await updateSessionSnapshot(session.id, {
-        displayName: activeUser.display_name,
-        gender: activeUser.gender,
-        birthSolar: activeUser.birth_solar_datetime ? new Date(activeUser.birth_solar_datetime).toISOString() : null,
-        baziJson: activeUser.bazi_json,
-      });
-    }
+  if (isNewSession || baziComputed) {
+    await updateSessionSnapshot(session.id, {
+      displayName: activeUser.display_name,
+      gender: activeUser.gender,
+      birthSolar: activeUser.birth_solar_datetime,
+      baziJson: activeUser.bazi_json,
+    });
   }
 
   const [recentMessages, memories, transit] = await Promise.all([
