@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { config } from '../config.js';
 import { createMemory, listRecentMemories } from '../db/repositories/memoriesRepo.js';
 import { createMessage, listRecentMessagesBySession } from '../db/repositories/messagesRepo.js';
-import { createSession, getSessionById, touchSession } from '../db/repositories/sessionsRepo.js';
+import { createSession, getSessionById, touchSession, updateSessionSnapshot } from '../db/repositories/sessionsRepo.js';
 import { findUserSecret } from '../db/repositories/userSecretsRepo.js';
 import { upsertUser, updateUserBazi } from '../db/repositories/usersRepo.js';
 import { decryptSecret } from '../security/secretsCrypto.js';
@@ -284,9 +284,17 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     profileJson: input.userProfile?.extra,
   });
 
-  const session = input.sessionId
-    ? await getSessionById(input.sessionId)
-    : await createSession(user.id, createSessionTitle(input.message));
+  const isNewSession = !input.sessionId;
+  const session = isNewSession
+    ? await createSession({
+        userId: user.id,
+        title: createSessionTitle(input.message),
+        snapshotDisplayName: user.display_name,
+        snapshotGender: user.gender,
+        snapshotBirthSolar: user.birth_solar_datetime ? new Date(user.birth_solar_datetime).toISOString() : null,
+        snapshotBaziJson: user.bazi_json,
+      })
+    : await getSessionById(input.sessionId!);
 
   if (!session) {
     throw new BadRequestError('sessionId 不存在');
@@ -364,6 +372,15 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     if (!baziComputed && !activeUser.bazi_json) {
       const detail = lastBaziError instanceof Error ? `: ${lastBaziError.message}` : '';
       throw new BadRequestError(`八字排盘失败${detail}`);
+    }
+
+    if (baziComputed && isNewSession) {
+      await updateSessionSnapshot(session.id, {
+        displayName: activeUser.display_name,
+        gender: activeUser.gender,
+        birthSolar: activeUser.birth_solar_datetime ? new Date(activeUser.birth_solar_datetime).toISOString() : null,
+        baziJson: activeUser.bazi_json,
+      });
     }
   }
 

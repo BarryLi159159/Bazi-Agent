@@ -17,6 +17,10 @@ export interface DbChatSession {
   id: string;
   user_id: string;
   title: string | null;
+  snapshot_display_name: string | null;
+  snapshot_gender: number | null;
+  snapshot_birth_solar: string | null;
+  snapshot_bazi_json: unknown;
   created_at: string;
   updated_at: string;
 }
