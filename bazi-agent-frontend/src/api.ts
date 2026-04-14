@@ -1,4 +1,4 @@
-import type { ChatResponse, SessionHistoryResponse, SessionsResponse, TransitResponse, UserApiKeyStatus, UserProfileForm, UserResponse } from './types';
+import type { ChatResponse, LifePredictionResponse, SessionHistoryResponse, SessionsResponse, TransitResponse, UserApiKeyStatus, UserProfileForm, UserResponse } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787';
 
@@ -154,6 +154,30 @@ export async function saveApiKey(accessToken: string, apiKey: string): Promise<v
     const detail = await response.text();
     throw new Error(`Save API key failed (${response.status}): ${detail}`);
   }
+}
+
+export async function fetchLifePrediction(accessToken: string, params?: {
+  yearStart?: number;
+  yearEnd?: number;
+  forceRefresh?: boolean;
+}): Promise<LifePredictionResponse> {
+  const response = await fetch(`${API_BASE}/api/predictions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(accessToken),
+    },
+    body: JSON.stringify({
+      yearStart: params?.yearStart,
+      yearEnd: params?.yearEnd,
+      forceRefresh: params?.forceRefresh,
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Prediction failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as LifePredictionResponse;
 }
 
 export async function deleteApiKey(accessToken: string): Promise<void> {

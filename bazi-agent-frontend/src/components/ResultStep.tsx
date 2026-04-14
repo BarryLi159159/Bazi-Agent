@@ -8,6 +8,7 @@ import { FortuneSection } from './result/FortuneSection';
 import { GodsSection } from './result/GodsSection';
 import { PersonalityCard } from './result/PersonalityCard';
 import { PillarsSection } from './result/PillarsSection';
+import { PredictionSection } from './result/PredictionSection';
 import { RelationsSection } from './result/RelationsSection';
 import { ResultChatSection } from './result/ResultChatSection';
 import { TransitSection } from './result/TransitSection';
@@ -24,14 +25,16 @@ export function ResultStep(props: {
   chatMessages: ChatMessage[];
   chatDraft: string;
   chatSending: boolean;
+  language: string;
+  accessToken: string | null;
   onChatDraftChange: (value: string) => void;
   onChatSubmit: () => void;
   onOpenSettings: () => void;
   onEdit: () => void;
   onBack: () => void;
 }) {
-  const { t, chart, transit, structuredAnalysis, assistantMessage, chatMeta, exportJson, hasApiKey, chatMessages, chatDraft, chatSending, onChatDraftChange, onChatSubmit, onOpenSettings, onEdit, onBack } = props;
-  const [activeView, setActiveView] = useState<'chart' | 'ai'>('chart');
+  const { t, chart, transit, structuredAnalysis, assistantMessage, chatMeta, exportJson, hasApiKey, chatMessages, chatDraft, chatSending, language, accessToken, onChatDraftChange, onChatSubmit, onOpenSettings, onEdit, onBack } = props;
+  const [activeView, setActiveView] = useState<'chart' | 'ai' | 'prediction'>('chart');
 
   if (!chart) {
     return (
@@ -95,11 +98,23 @@ export function ResultStep(props: {
           <button type="button" className={activeView === 'ai' ? 'active' : ''} onClick={() => setActiveView('ai')}>
             {t.resultAiView ?? 'AI 解读'}
           </button>
+          <button type="button" className={activeView === 'prediction' ? 'active' : ''} onClick={() => setActiveView('prediction')}>
+            {t.resultPredictionView ?? '人生预测'}
+          </button>
         </div>
         {!hasApiKey ? <p className="muted result-view-hint">{t.resultAiLockedHint ?? '未设置 API key 时，AI 解读会保持为空。请先去 Settings 添加 API。'}</p> : null}
       </section>
 
-      {activeView === 'chart' ? (
+      {activeView === 'prediction' ? (
+        <PredictionSection
+          t={t}
+          language={language}
+          accessToken={accessToken}
+          hasBazi={Boolean(chart)}
+          hasApiKey={hasApiKey}
+          onOpenSettings={onOpenSettings}
+        />
+      ) : activeView === 'chart' ? (
         <>
           <div className="result-top-grid">
             <PillarsSection title={t.panelPillars} pillars={chart.pillars} />

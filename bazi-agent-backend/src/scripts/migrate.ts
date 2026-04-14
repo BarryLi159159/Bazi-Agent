@@ -6,7 +6,7 @@ import { pool } from '../db/pool.js';
 async function main(): Promise<void> {
   const currentDir = dirname(fileURLToPath(import.meta.url));
   const migrationsDir = resolve(currentDir, '../../migrations');
-  const files = ['001_init.sql', '002_drop_session_snapshot_columns.sql', '003_create_user_secrets.sql'];
+  const files = ['001_init.sql', '002_drop_session_snapshot_columns.sql', '003_create_user_secrets.sql', '004_create_predictions.sql'];
 
   await pool.query('BEGIN');
   try {

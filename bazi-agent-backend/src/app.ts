@@ -1,6 +1,7 @@
 import express from 'express';
 import { chatRouter } from './routes/chat.js';
 import { healthRouter } from './routes/health.js';
+import { predictionsRouter } from './routes/predictions.js';
 import { sessionsRouter } from './routes/sessions.js';
 import { usersRouter } from './routes/users.js';
 
@@ -24,6 +25,7 @@ export function createApp() {
   app.use('/api/chat', chatRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/sessions', sessionsRouter);
+  app.use('/api/predictions', predictionsRouter);
 
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error('Unhandled error', error);

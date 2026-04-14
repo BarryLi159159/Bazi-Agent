@@ -649,6 +649,8 @@ export function App() {
             chatMessages={chatMessages}
             chatDraft={chatDraft}
             chatSending={chatSending}
+            language={language}
+            accessToken={session?.access_token ?? null}
             onChatDraftChange={setChatDraft}
             onChatSubmit={() => void handleSendFollowUp()}
             onOpenSettings={() => void handleOpenSettings()}
