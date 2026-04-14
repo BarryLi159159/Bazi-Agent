@@ -54,7 +54,13 @@ function readChartFromExportJson(exportJson: Record<string, unknown> | null): No
   if (!chart) {
     return null;
   }
-  return normalizeChartRich({ chart_rich: chart });
+  const fortune = asRecord(exportJson?.fortune);
+  return normalizeChartRich({
+    chart_rich: {
+      ...chart,
+      ...(fortune ? { fortune } : {}),
+    },
+  });
 }
 
 function readStructuredAnalysis(value: unknown): StructuredAnalysis | null {
