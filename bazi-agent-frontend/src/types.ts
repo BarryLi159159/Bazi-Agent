@@ -179,42 +179,6 @@ export interface TransitResponse {
   transit: TransitSnapshot;
 }
 
-// ---------------------------------------------------------------------------
-// Life Prediction
-// ---------------------------------------------------------------------------
-
-export interface YearPrediction {
-  year: number;
-  daYunGanZhi: string;
-  liuNianGanZhi: string;
-  overallScore: number;
-  domains: {
-    career: { score: number; summary: string };
-    wealth: { score: number; summary: string };
-    relationship: { score: number; summary: string };
-    health: { score: number; summary: string };
-  };
-  keyEvents: Array<{
-    type: 'opportunity' | 'risk' | 'turning_point' | 'noble_help';
-    description: string;
-    month?: number;
-  }>;
-  advice: string;
-}
-
-export interface LifePrediction {
-  yearRange: { start: number; end: number };
-  overallNarrative: string;
-  years: YearPrediction[];
-  peakYears: number[];
-  cautionYears: number[];
-}
-
-export interface LifePredictionResponse {
-  prediction: LifePrediction;
-  cached: boolean;
-}
-
 export interface UserApiKeyStatus {
   provider: string;
   hasKey: boolean;

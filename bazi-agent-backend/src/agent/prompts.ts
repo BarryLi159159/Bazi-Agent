@@ -442,28 +442,6 @@ export function buildAnswerSystemPrompt(params: {
   ].join('\n');
 }
 
-export function buildLifePredictionPrompt(params: {
-  natalChartJson: Record<string, unknown>;
-  yearlyTransits: Array<Record<string, unknown>>;
-  existingAnalysis: Record<string, unknown> | null;
-}): string {
-  return [
-    '你是八字流年预测分析师。根据命盘+大运+流年，输出 JSON 预测。只输出 JSON，不要其他文字。',
-    '',
-    '规则：',
-    '- 评分 0-100，50=中性，70+=好，30-=差',
-    '- career 看官印食伤，wealth 看财星比劫，relationship 看合冲（男看财女看官），health 看五行过不及',
-    '- keyEvents 最多3个，type: opportunity/risk/turning_point/noble_help',
-    '- summary 和 advice 简短（30字内），中文',
-    '',
-    '输出格式：{"yearRange":{"start":N,"end":N},"overallNarrative":"总述","years":[{"year":N,"daYunGanZhi":"X","liuNianGanZhi":"X","overallScore":N,"domains":{"career":{"score":N,"summary":"..."},"wealth":{"score":N,"summary":"..."},"relationship":{"score":N,"summary":"..."},"health":{"score":N,"summary":"..."}},"keyEvents":[],"advice":"..."}],"peakYears":[],"cautionYears":[]}',
-    '',
-    params.existingAnalysis ? `诊断摘要：${JSON.stringify(params.existingAnalysis)}` : '',
-    `命盘：${JSON.stringify(params.natalChartJson)}`,
-    `流年：${JSON.stringify(params.yearlyTransits)}`,
-  ].join('\n');
-}
-
 export function mapConversationMessages(messages: DbMessage[]): Array<{ role: 'user' | 'assistant'; content: string }> {
   return messages
     .filter((item) => item.role === 'user' || item.role === 'assistant')

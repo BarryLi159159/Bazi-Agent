@@ -8,9 +8,8 @@ import { FortuneSection } from './result/FortuneSection';
 import { GodsSection } from './result/GodsSection';
 import { PersonalityCard } from './result/PersonalityCard';
 import { PillarsSection } from './result/PillarsSection';
-import { PredictionSection } from './result/PredictionSection';
+import { PredictionChatSection } from './result/PredictionChatSection';
 import { RelationsSection } from './result/RelationsSection';
-import { ResultChatSection } from './result/ResultChatSection';
 import { TransitSection } from './result/TransitSection';
 
 export function ResultStep(props: {
@@ -33,7 +32,7 @@ export function ResultStep(props: {
   onEdit: () => void;
   onBack: () => void;
 }) {
-  const { t, chart, transit, structuredAnalysis, assistantMessage, chatMeta, exportJson, hasApiKey, chatMessages, chatDraft, chatSending, language, accessToken, onChatDraftChange, onChatSubmit, onOpenSettings, onEdit, onBack } = props;
+  const { t, chart, transit, structuredAnalysis, assistantMessage, chatMeta, exportJson, hasApiKey, chatMessages, chatDraft, chatSending, language, onChatDraftChange, onChatSubmit, onOpenSettings, onEdit, onBack } = props;
   const [activeView, setActiveView] = useState<'chart' | 'ai' | 'prediction'>('chart');
 
   if (!chart) {
@@ -105,16 +104,7 @@ export function ResultStep(props: {
         {!hasApiKey ? <p className="muted result-view-hint">{t.resultAiLockedHint ?? '未设置 API key 时，AI 解读会保持为空。请先去 Settings 添加 API。'}</p> : null}
       </section>
 
-      {activeView === 'prediction' ? (
-        <PredictionSection
-          t={t}
-          language={language}
-          accessToken={accessToken}
-          hasBazi={Boolean(chart)}
-          hasApiKey={hasApiKey}
-          onOpenSettings={onOpenSettings}
-        />
-      ) : activeView === 'chart' ? (
+      {activeView === 'chart' ? (
         <>
           <div className="result-top-grid">
             <PillarsSection title={t.panelPillars} pillars={chart.pillars} />
@@ -138,40 +128,50 @@ export function ResultStep(props: {
             <RelationsSection title={t.panelRelations} highlights={chart.relations.highlights} />
           </div>
         </>
+      ) : activeView === 'ai' ? (
+        hasApiKey ? (
+          <>
+            {(structuredAnalysis?.personalitySnapshot || structuredAnalysis?.annualFortune) ? (
+              <div className="insight-cards-grid">
+                {structuredAnalysis.personalitySnapshot ? (
+                  <PersonalityCard t={t} snapshot={structuredAnalysis.personalitySnapshot} dayMaster={chart.basic.dayMaster} />
+                ) : null}
+                {structuredAnalysis.annualFortune ? (
+                  <AnnualFortuneCard t={t} fortune={structuredAnalysis.annualFortune} />
+                ) : null}
+              </div>
+            ) : null}
+
+            <BaziDiagnosisSection t={t} analysis={structuredAnalysis} assistantMessage={assistantMessage} chatMeta={chatMeta} exportJson={exportJson} />
+          </>
+        ) : (
+          <section className="panel result-ai-empty">
+            <h3>{t.resultAiEmptyTitle ?? 'AI 解读未启用'}</h3>
+            <p className="muted">{t.resultAiEmptyBody ?? '当前账号还没有配置专属 API key，所以这里先保持为空，不显示规则兜底内容。'}</p>
+            <button type="button" className="primary-btn result-ai-empty-btn" onClick={onOpenSettings}>
+              {t.resultAiEmptyAction ?? '去 Settings 添加 API'}
+            </button>
+          </section>
+        )
       ) : hasApiKey ? (
-        <>
-          {(structuredAnalysis?.personalitySnapshot || structuredAnalysis?.annualFortune) ? (
-            <div className="insight-cards-grid">
-              {structuredAnalysis.personalitySnapshot ? (
-                <PersonalityCard t={t} snapshot={structuredAnalysis.personalitySnapshot} dayMaster={chart.basic.dayMaster} />
-              ) : null}
-              {structuredAnalysis.annualFortune ? (
-                <AnnualFortuneCard t={t} fortune={structuredAnalysis.annualFortune} />
-              ) : null}
-            </div>
-          ) : null}
-
-          <BaziDiagnosisSection t={t} analysis={structuredAnalysis} assistantMessage={assistantMessage} chatMeta={chatMeta} exportJson={exportJson} />
-
-          <ResultChatSection
-            t={t}
-            messages={chatMessages}
-            draft={chatDraft}
-            sending={chatSending}
-            onDraftChange={onChatDraftChange}
-            onSubmit={onChatSubmit}
-          />
-        </>
+        <PredictionChatSection
+          t={t}
+          language={language}
+          messages={chatMessages}
+          draft={chatDraft}
+          sending={chatSending}
+          onDraftChange={onChatDraftChange}
+          onSubmit={onChatSubmit}
+        />
       ) : (
         <section className="panel result-ai-empty">
-          <h3>{t.resultAiEmptyTitle ?? 'AI 解读未启用'}</h3>
-          <p className="muted">{t.resultAiEmptyBody ?? '当前账号还没有配置专属 API key，所以这里先保持为空，不显示规则兜底内容。'}</p>
+          <h3>{t.predictionTitle ?? '人生预测'}</h3>
+          <p className="muted">{t.predictionNoKey ?? '需要设置 API key 才能使用人生预测。'}</p>
           <button type="button" className="primary-btn result-ai-empty-btn" onClick={onOpenSettings}>
             {t.resultAiEmptyAction ?? '去 Settings 添加 API'}
           </button>
         </section>
       )}
-
     </section>
   );
 }

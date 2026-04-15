@@ -134,39 +134,6 @@ export interface ModelProvider {
   generateReply(messages: ModelMessage[]): Promise<string>;
 }
 
-// ---------------------------------------------------------------------------
-// Life Prediction
-// ---------------------------------------------------------------------------
-
-export const yearPredictionSchema = z.object({
-  year: z.number(),
-  daYunGanZhi: z.string(),
-  liuNianGanZhi: z.string(),
-  overallScore: z.number().min(0).max(100),
-  domains: z.object({
-    career: z.object({ score: z.number().min(0).max(100), summary: z.string().max(200) }),
-    wealth: z.object({ score: z.number().min(0).max(100), summary: z.string().max(200) }),
-    relationship: z.object({ score: z.number().min(0).max(100), summary: z.string().max(200) }),
-    health: z.object({ score: z.number().min(0).max(100), summary: z.string().max(200) }),
-  }),
-  keyEvents: z.array(z.object({
-    type: z.enum(['opportunity', 'risk', 'turning_point', 'noble_help']),
-    description: z.string().max(150),
-    month: z.number().min(1).max(12).optional(),
-  })).max(3),
-  advice: z.string().max(200),
-});
-export type YearPrediction = z.infer<typeof yearPredictionSchema>;
-
-export const lifePredictionSchema = z.object({
-  yearRange: z.object({ start: z.number(), end: z.number() }),
-  overallNarrative: z.string().max(400),
-  years: z.array(yearPredictionSchema),
-  peakYears: z.array(z.number()).max(3),
-  cautionYears: z.array(z.number()).max(3),
-});
-export type LifePrediction = z.infer<typeof lifePredictionSchema>;
-
 export interface AgentChatInput {
   userExternalId: string;
   sessionId?: string | undefined;
