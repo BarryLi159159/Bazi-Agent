@@ -2379,34 +2379,123 @@ textarea {
   font-size: 1rem;
 }
 
-.prediction-legend {
+.prediction-year-bars {
   display: flex;
-  flex-wrap: wrap;
+  gap: 10px;
+  overflow-x: auto;
+}
+
+.prediction-year-bar {
+  flex: 1;
+  min-width: 90px;
+  max-width: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 6px;
-}
-
-.prediction-legend-btn {
-  font: inherit;
-  font-size: 0.75rem;
-  font-weight: 600;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 3px 12px;
-  cursor: pointer;
+  padding: 12px 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
   background: var(--bg-0);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.prediction-year-bar:hover,
+.prediction-year-bar.selected {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.prediction-year-bar.peak { border-color: #86efac; }
+.prediction-year-bar.peak.selected { border-color: #16a34a; box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.15); }
+.prediction-year-bar.caution { border-color: #fde68a; }
+.prediction-year-bar.caution.selected { border-color: #d97706; box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.15); }
+
+.prediction-year-bar-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.prediction-year-bar-year {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink-0);
+}
+
+.prediction-year-bar-gz {
+  font-size: 0.75rem;
   color: var(--ink-2);
-  transition: all 0.15s;
 }
 
-.prediction-legend-btn.active {
-  background: var(--legend-color, #334155);
-  color: #fff;
-  border-color: transparent;
+.prediction-year-bar-score {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--ink-0);
+  line-height: 1;
 }
 
-.prediction-chart-svg {
+.prediction-year-bar-meter {
   width: 100%;
-  max-height: 280px;
+  height: 6px;
+  background: var(--bg-1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.prediction-year-bar-fill {
+  width: 100%;
+  background: linear-gradient(90deg, #6366f1, #818cf8);
+  border-radius: 3px;
+  transition: height 0.3s;
+}
+
+.prediction-year-bar-domains {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  height: 40px;
+  align-items: flex-end;
+}
+
+.prediction-year-bar-domain {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.prediction-domain-mini-bar {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+  transition: height 0.3s;
+}
+
+.prediction-domain-legend {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.prediction-domain-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--ink-2);
+}
+
+.prediction-domain-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 /* Year Detail Card */

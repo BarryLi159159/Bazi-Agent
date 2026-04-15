@@ -6,10 +6,9 @@ import { listRecentMemories } from '../db/repositories/memoriesRepo.js';
 import { generateLifePrediction } from '../agent/predictionService.js';
 import { listRecentMessagesBySession } from '../db/repositories/messagesRepo.js';
 import { listSessionsByExternalId } from '../db/repositories/sessionsRepo.js';
+import { pickKeyYears } from '../agent/yearlyTransit.js';
 
 const predictionBodySchema = z.object({
-  yearStart: z.number().int().min(1900).max(2200).optional(),
-  yearEnd: z.number().int().min(1900).max(2200).optional(),
   forceRefresh: z.boolean().optional(),
 });
 
@@ -53,13 +52,13 @@ predictionsRouter.post('/', async (req, res) => {
     return res.status(400).json({ error: '请先排盘再使用人生预测功能' });
   }
 
-  const currentYear = new Date().getFullYear();
-  const yearStart = parsed.data.yearStart ?? currentYear;
-  const yearEnd = parsed.data.yearEnd ?? (currentYear + 9);
+  const bazi = isRecord(user.bazi_json) ? user.bazi_json : null;
+  const chartRich = isRecord(bazi?.['chart_rich']) ? (bazi['chart_rich'] as Record<string, unknown>) : null;
 
-  if (yearEnd - yearStart > 20) {
-    return res.status(400).json({ error: '预测范围不能超过 20 年' });
-  }
+  const currentYear = new Date().getFullYear();
+  const keyYears = pickKeyYears({ currentYear, chartRich });
+  const yearStart = keyYears[0] ?? currentYear;
+  const yearEnd = keyYears[keyYears.length - 1] ?? currentYear + 1;
 
   try {
     const memories = await listRecentMemories(user.id, 8);
@@ -68,6 +67,7 @@ predictionsRouter.post('/', async (req, res) => {
     const result = await generateLifePrediction({
       user,
       memories,
+      keyYears,
       yearStart,
       yearEnd,
       forceRefresh: parsed.data.forceRefresh ?? false,

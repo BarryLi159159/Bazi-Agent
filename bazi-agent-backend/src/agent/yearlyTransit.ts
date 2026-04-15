@@ -208,3 +208,31 @@ export function computeYearlyTransits(params: {
 
   return entries;
 }
+
+/**
+ * Pick key years for prediction: current year, next year, and
+ * 大运 transition years (first year of each decade within a window).
+ * Returns a de-duplicated, sorted list capped at `maxYears`.
+ */
+export function pickKeyYears(params: {
+  currentYear: number;
+  chartRich: Record<string, unknown> | null;
+  windowYears?: number;
+  maxYears?: number;
+}): number[] {
+  const { currentYear, chartRich, windowYears = 15, maxYears = 6 } = params;
+  const decades = extractFortuneDecades(chartRich);
+  const yearSet = new Set<number>();
+
+  yearSet.add(currentYear);
+  yearSet.add(currentYear + 1);
+
+  for (const d of decades) {
+    if (d.startYear !== null && d.startYear > currentYear && d.startYear <= currentYear + windowYears) {
+      yearSet.add(d.startYear);
+    }
+  }
+
+  const sorted = [...yearSet].sort((a, b) => a - b);
+  return sorted.slice(0, maxYears);
+}

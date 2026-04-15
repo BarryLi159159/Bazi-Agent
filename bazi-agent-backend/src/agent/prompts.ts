@@ -448,36 +448,19 @@ export function buildLifePredictionPrompt(params: {
   existingAnalysis: Record<string, unknown> | null;
 }): string {
   return [
-    '你是一个专业的中文八字流年预测分析师。',
-    '你的任务是根据原局命盘、大运、流年数据，逐年输出结构化的人生预测。',
-    '必须输出一个合法 JSON 对象，不能有任何 Markdown 或 JSON 以外的文字。',
+    '你是八字流年预测分析师。根据命盘+大运+流年，输出 JSON 预测。只输出 JSON，不要其他文字。',
     '',
-    '分析方法：',
-    '1. 先看该年流年干支与原局四柱的刑冲合会关系（interactions 字段已预计算）。',
-    '2. 再结合当前大运（daYunGanZhi）的影响方向。',
-    '3. 如果有已有诊断分析（existingAnalysis），参考其用神、喜忌、结构稳定性作为基础。',
-    '4. 根据五行生克关系推导四个领域的具体影响：',
-    '   - career（事业）：看官杀星、印星、食伤的流年互动',
-    '   - wealth（财运）：看财星、比劫的流年互动',
-    '   - relationship（感情）：男看财星，女看官星，合冲影响',
-    '   - health（健康）：看五行太过不及、被冲克的宫位',
-    '5. 评分标准：50 分为中性，70+ 为积极，80+ 为非常好，30- 为艰难年份。',
-    '6. keyEvents 只输出真正有意义的事件窗口，type 可选 opportunity / risk / turning_point / noble_help。',
-    '7. peakYears 和 cautionYears 从 years 中选取最值得关注的年份。',
+    '规则：',
+    '- 评分 0-100，50=中性，70+=好，30-=差',
+    '- career 看官印食伤，wealth 看财星比劫，relationship 看合冲（男看财女看官），health 看五行过不及',
+    '- keyEvents 最多3个，type: opportunity/risk/turning_point/noble_help',
+    '- summary 和 advice 简短（30字内），中文',
     '',
-    '输出 JSON 格式：',
-    '{"yearRange":{"start":2026,"end":2035},"overallNarrative":"一段概括这10年整体走势的话","years":[{"year":2026,"daYunGanZhi":"X","liuNianGanZhi":"X","overallScore":65,"domains":{"career":{"score":70,"summary":"..."},"wealth":{"score":60,"summary":"..."},"relationship":{"score":55,"summary":"..."},"health":{"score":68,"summary":"..."}},"keyEvents":[{"type":"opportunity","description":"..."}],"advice":"..."},...],"peakYears":[2028,2031],"cautionYears":[2027]}',
+    '输出格式：{"yearRange":{"start":N,"end":N},"overallNarrative":"总述","years":[{"year":N,"daYunGanZhi":"X","liuNianGanZhi":"X","overallScore":N,"domains":{"career":{"score":N,"summary":"..."},"wealth":{"score":N,"summary":"..."},"relationship":{"score":N,"summary":"..."},"health":{"score":N,"summary":"..."}},"keyEvents":[],"advice":"..."}],"peakYears":[],"cautionYears":[]}',
     '',
-    '语气要求：专业、克制、不夸张、不宿命论，给具体可执行建议。',
-    '',
-    params.existingAnalysis
-      ? `已有命盘诊断（参考用神、喜忌等）：\n${JSON.stringify(params.existingAnalysis, null, 2)}\n`
-      : '',
-    '原局命盘数据：',
-    JSON.stringify(params.natalChartJson, null, 2),
-    '',
-    '流年数据（含与原局的刑冲合会预计算）：',
-    JSON.stringify(params.yearlyTransits, null, 2),
+    params.existingAnalysis ? `诊断摘要：${JSON.stringify(params.existingAnalysis)}` : '',
+    `命盘：${JSON.stringify(params.natalChartJson)}`,
+    `流年：${JSON.stringify(params.yearlyTransits)}`,
   ].join('\n');
 }
 

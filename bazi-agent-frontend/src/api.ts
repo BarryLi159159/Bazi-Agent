@@ -157,8 +157,6 @@ export async function saveApiKey(accessToken: string, apiKey: string): Promise<v
 }
 
 export async function fetchLifePrediction(accessToken: string, params?: {
-  yearStart?: number;
-  yearEnd?: number;
   forceRefresh?: boolean;
 }): Promise<LifePredictionResponse> {
   const response = await fetch(`${API_BASE}/api/predictions`, {
@@ -168,8 +166,6 @@ export async function fetchLifePrediction(accessToken: string, params?: {
       ...authHeaders(accessToken),
     },
     body: JSON.stringify({
-      yearStart: params?.yearStart,
-      yearEnd: params?.yearEnd,
       forceRefresh: params?.forceRefresh,
     }),
   });
