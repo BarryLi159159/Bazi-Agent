@@ -157,10 +157,12 @@ export function ResultStep(props: {
         <PredictionChatSection
           t={t}
           language={language}
+          chart={chart}
           messages={chatMessages}
           draft={chatDraft}
           sending={chatSending}
           onDraftChange={onChatDraftChange}
+          onSendMessage={(text: string) => { onChatDraftChange(text); setTimeout(() => onChatSubmit(), 0); }}
           onSubmit={onChatSubmit}
         />
       ) : (
