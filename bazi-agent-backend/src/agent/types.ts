@@ -61,7 +61,7 @@ export const structuredAnalysisSchema = z.object({
   rescue: z.object({
     rescuable: z.boolean(),
     rescueReason: z.string().min(1).max(240),
-    candidateUsefulGods: z.array(z.string().min(1).max(30)).max(5),
+    candidateUsefulGods: z.array(z.string().min(1).max(80)).max(5),
   }),
   capacity: z.object({
     dayMasterStrength: dayMasterStrengthSchema,
@@ -69,8 +69,8 @@ export const structuredAnalysisSchema = z.object({
     note: z.string().min(1).max(200),
   }),
   usefulGods: z.object({
-    primary: z.array(z.string().min(1).max(30)).min(1).max(4),
-    support: z.array(z.string().min(1).max(30)).max(4),
+    primary: z.array(z.string().min(1).max(80)).min(1).max(4),
+    support: z.array(z.string().min(1).max(80)).max(4),
     rationale: z.string().min(1).max(240),
   }),
   usefulGodEffectiveness: z.object({
@@ -87,8 +87,8 @@ export const structuredAnalysisSchema = z.object({
     weakPoints: z.array(z.string().min(1).max(120)).max(5),
   }),
   preferences: z.object({
-    favorable: z.array(z.string().min(1).max(30)).max(5),
-    unfavorable: z.array(z.string().min(1).max(30)).max(5),
+    favorable: z.array(z.string().min(1).max(80)).max(5),
+    unfavorable: z.array(z.string().min(1).max(80)).max(5),
     rationale: z.string().min(1).max(240),
   }),
   failureMode: z.object({
@@ -108,7 +108,7 @@ export const structuredAnalysisSchema = z.object({
   evidenceSources: z.array(evidenceSourceSchema).max(3).default([]),
   confidence: z.number().min(0).max(1),
   personalitySnapshot: z.object({
-    headline: z.string().min(1).max(30),
+    headline: z.string().min(1).max(60),
     description: z.string().min(1).max(200),
   }).optional(),
   annualFortune: z.object({
