@@ -2329,6 +2329,90 @@ textarea {
   justify-content: space-between;
 }
 
+.prediction-verify-table {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prediction-verify-row {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--bg-0);
+}
+
+.prediction-verify-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.prediction-verify-year {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink-0);
+}
+
+.prediction-verify-gz {
+  font-weight: 600;
+  color: var(--ink-1);
+}
+
+.prediction-verify-tags {
+  flex: 1 1 100%;
+  color: var(--ink-2);
+  font-size: 0.82rem;
+}
+
+.prediction-verify-row-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prediction-verify-row-options .prediction-option-btn {
+  padding: 8px 14px;
+  font-size: 0.82rem;
+}
+
+.prediction-option-btn.is-selected {
+  border-width: 2px;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.prediction-option-good.is-selected {
+  border-color: #16a34a;
+  color: #15803d;
+  background: #f0fdf4;
+}
+
+.prediction-option-neutral.is-selected {
+  border-color: #d97706;
+  color: #b45309;
+  background: #fffbeb;
+}
+
+.prediction-option-bad.is-selected {
+  border-color: #dc2626;
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.prediction-verify-actions {
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-start;
+}
+
+.prediction-verify-actions .primary-btn {
+  margin-right: auto;
+}
+
 .prediction-skip-btn {
   font-size: 0.82rem;
 }
