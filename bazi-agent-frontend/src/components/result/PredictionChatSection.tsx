@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { NormalizedChartRich, NormalizedFortuneDecade } from '../../chartRich';
 import type { ChatMessage } from '../../types';
 
-// ---- 60 Jiazi + interactions algorithm ----
+// ---- Algorithm: 60 Jiazi + interactions (same logic as backend) ----
 
 const STEMS = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
 const BRANCHES = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
@@ -22,39 +22,31 @@ function pairMatch(a: string, b: string, list: string[]) {
   return list.includes(`${a}${b}`) || list.includes(`${b}${a}`);
 }
 
-type TopicKey = 'career' | 'wealth' | 'relationship' | 'health' | 'general';
+interface YearHit { year: number; gz: string; daYun: string|null; tags: string[] }
 
-interface Interaction {
-  type: '合' | '冲' | '刑' | '克';
-  scope: '天干' | '地支';
-  pillar: '年柱' | '月柱' | '日柱' | '时柱';
-  desc: string;
-}
+function computeKeyYears(chart: NormalizedChartRich, startYear: number, endYear: number): YearHit[] {
+  const natalStems = chart.pillars.map(p => p.stem).filter(Boolean);
+  const natalBranches = chart.pillars.map(p => p.branch).filter(Boolean);
+  const decades = chart.fortune.decades;
+  const results: YearHit[] = [];
 
-interface YearScore {
-  year: number;
-  gz: string;
-  daYun: string | null;
-  isDaYunTransition: boolean;
-  interactions: Interaction[];
-  score: number;
-  tone: 'good' | 'mixed' | 'bad' | 'flat';
-}
-
-const PILLAR_ORDER: Array<'年柱'|'月柱'|'日柱'|'时柱'> = ['年柱','月柱','日柱','时柱'];
-
-function computeInteractions(chart: NormalizedChartRich, year: number): Interaction[] {
-  const { stem: ys, branch: yb } = yearGanZhi(year);
-  const result: Interaction[] = [];
-  chart.pillars.slice(0,4).forEach((p, i) => {
-    const pillarName = PILLAR_ORDER[i] ?? '年柱';
-    if (STEM_CLASH[`${ys}${p.stem}`]) result.push({ type:'冲', scope:'天干', pillar: pillarName, desc: `${ys}冲${p.stem}` });
-    if (STEM_COMBINE[`${ys}${p.stem}`]) result.push({ type:'合', scope:'天干', pillar: pillarName, desc: `${ys}合${p.stem}` });
-    if (pairMatch(yb, p.branch, BRANCH_CLASH)) result.push({ type:'冲', scope:'地支', pillar: pillarName, desc: `${yb}冲${p.branch}` });
-    if (pairMatch(yb, p.branch, BRANCH_COMBINE)) result.push({ type:'合', scope:'地支', pillar: pillarName, desc: `${yb}合${p.branch}` });
-    if (pairMatch(yb, p.branch, BRANCH_HARM)) result.push({ type:'刑', scope:'地支', pillar: pillarName, desc: `${yb}刑${p.branch}` });
-  });
-  return result;
+  for (let y = startYear; y <= endYear; y++) {
+    const { stem, branch, gz } = yearGanZhi(y);
+    const tags: string[] = [];
+    for (const ns of natalStems) {
+      if (STEM_CLASH[`${stem}${ns}`]) tags.push(`天干冲(${stem}冲${ns})`);
+      if (STEM_COMBINE[`${stem}${ns}`]) tags.push(`天干合(${stem}合${ns})`);
+    }
+    for (const nb of natalBranches) {
+      if (pairMatch(branch, nb, BRANCH_CLASH)) tags.push(`地支冲(${branch}冲${nb})`);
+      if (pairMatch(branch, nb, BRANCH_COMBINE)) tags.push(`地支合(${branch}合${nb})`);
+      if (pairMatch(branch, nb, BRANCH_HARM)) tags.push(`地支刑(${branch}刑${nb})`);
+    }
+    const daYun = findDaYun(y, decades);
+    if (isDaYunTransition(y, decades)) tags.push('大运交接');
+    if (tags.length > 0) results.push({ year: y, gz, daYun, tags });
+  }
+  return results;
 }
 
 function findDaYun(year: number, decades: NormalizedFortuneDecade[]): string|null {
@@ -64,56 +56,26 @@ function findDaYun(year: number, decades: NormalizedFortuneDecade[]): string|nul
   return null;
 }
 
-// Topic-agnostic scoring: just the overall chart-vs-transit tension
-// (which topic it most affects is left to the LLM to analyze per click)
-
-const PILLAR_BASE_WEIGHT: Record<'年柱'|'月柱'|'日柱'|'时柱', number> = {
-  年柱: 0.9,
-  月柱: 1.0,
-  日柱: 1.3, // day pillar (self) is most important
-  时柱: 0.8,
-};
-
-const TYPE_BASE_WEIGHT: Record<Interaction['type'], number> = {
-  合: +9,
-  冲: -14,
-  刑: -9,
-  克: -5,
-};
-
-function scoreYear(chart: NormalizedChartRich, year: number): YearScore {
-  const interactions = computeInteractions(chart, year);
-  const decades = chart.fortune.decades;
-  const isTransition = decades.some(d => d.startYear === year);
-
-  let score = 50;
-  for (const it of interactions) {
-    const w = PILLAR_BASE_WEIGHT[it.pillar] ?? 1.0;
-    score += TYPE_BASE_WEIGHT[it.type] * w;
-  }
-  if (isTransition) score -= 4;
-  score = Math.max(18, Math.min(92, Math.round(score)));
-
-  let tone: YearScore['tone'];
-  if (score >= 70) tone = 'good';
-  else if (score >= 55) tone = 'mixed';
-  else if (score >= 40) tone = 'flat';
-  else tone = 'bad';
-
-  return {
-    year,
-    gz: yearGanZhi(year).gz,
-    daYun: findDaYun(year, decades),
-    isDaYunTransition: isTransition,
-    interactions,
-    score,
-    tone,
-  };
+function isDaYunTransition(year: number, decades: NormalizedFortuneDecade[]): boolean {
+  return decades.some(d => d.startYear === year);
 }
 
-// ---- localStorage for verification ----
+// ---- CLI flow state ----
 
+type FlowStep = 'verify' | 'topic' | 'year' | 'predict';
 type Answer = 'good' | 'bad' | 'neutral';
+
+const TOPICS_ZH = ['事业','财运','感情','健康','综合'];
+const TOPICS_EN = ['Career','Wealth','Love','Health','General'];
+
+function roleLabel(role: ChatMessage['role'], t: Record<string, string>): string {
+  if (role === 'user') return t.diagnosisChatUser ?? '你';
+  if (role === 'assistant') return t.diagnosisChatAssistant ?? 'AI';
+  return role;
+}
+
+// ---- localStorage persistence ----
+
 const STORAGE_PREFIX = 'bazi:prediction:verify:';
 
 function storageKey(bazi: string): string {
@@ -127,37 +89,23 @@ function loadSavedAnswers(bazi: string): Record<number, Answer> {
     const parsed = JSON.parse(raw) as Record<string, Answer>;
     const result: Record<number, Answer> = {};
     for (const [k, v] of Object.entries(parsed)) {
-      const y = Number(k);
-      if (Number.isFinite(y) && (v === 'good' || v === 'bad' || v === 'neutral')) result[y] = v;
+      const year = Number(k);
+      if (Number.isFinite(year) && (v === 'good' || v === 'bad' || v === 'neutral')) {
+        result[year] = v;
+      }
     }
     return result;
-  } catch { return {}; }
+  } catch {
+    return {};
+  }
 }
 
 function saveAnswers(bazi: string, answers: Record<number, Answer>) {
-  try { localStorage.setItem(storageKey(bazi), JSON.stringify(answers)); } catch { /* ignore */ }
-}
-
-// ---- Topic config ----
-
-const TOPICS_ZH: Array<{ key: TopicKey; label: string; hint: string }> = [
-  { key: 'career',       label: '事业', hint: '工作、职位、发展' },
-  { key: 'wealth',       label: '财运', hint: '收入、投资、机会' },
-  { key: 'relationship', label: '感情', hint: '伴侣、桃花、关系' },
-  { key: 'health',       label: '健康', hint: '身体、精神、作息' },
-  { key: 'general',      label: '综合', hint: '整体人生走势' },
-];
-
-const TOPICS_EN: Array<{ key: TopicKey; label: string; hint: string }> = [
-  { key: 'career',       label: 'Career',       hint: 'Work & growth' },
-  { key: 'wealth',       label: 'Wealth',       hint: 'Income & opportunity' },
-  { key: 'relationship', label: 'Love',         hint: 'Partner & relationships' },
-  { key: 'health',       label: 'Health',       hint: 'Body & wellbeing' },
-  { key: 'general',      label: 'General',      hint: 'Overall life trend' },
-];
-
-function topicLabelZh(key: TopicKey): string {
-  return TOPICS_ZH.find(t => t.key === key)?.label ?? key;
+  try {
+    localStorage.setItem(storageKey(bazi), JSON.stringify(answers));
+  } catch {
+    /* ignore quota errors */
+  }
 }
 
 // ---- Component ----
@@ -167,57 +115,50 @@ export function PredictionChatSection(props: {
   language: string;
   chart: NormalizedChartRich;
   messages: ChatMessage[];
+  draft: string;
   sending: boolean;
+  onDraftChange: (value: string) => void;
   onSendMessage: (text: string) => void;
+  onSubmit: () => void;
 }) {
-  const { t, language, chart, messages, sending, onSendMessage } = props;
-  const zh = language === 'zh';
-  const topics = zh ? TOPICS_ZH : TOPICS_EN;
+  const { t, language, chart, messages, draft, sending, onDraftChange, onSendMessage, onSubmit } = props;
+
+  const currentYear = new Date().getFullYear();
+  const birthYear = chart.fortune.decades[0]?.startYear
+    ? chart.fortune.decades[0].startYear - (chart.fortune.decades[0].startAge ?? 8)
+    : currentYear - 30;
+
+  const pastHits = useMemo(() => computeKeyYears(chart, Math.max(birthYear + 16, currentYear - 15), currentYear - 1), [chart, birthYear, currentYear]);
+  const futureHits = useMemo(() => computeKeyYears(chart, currentYear, currentYear + 10), [chart, currentYear]);
+  const futureYears = useMemo(() => {
+    const base = [currentYear, currentYear + 1];
+    const fromHits = futureHits.map(h => h.year).filter(y => y > currentYear + 1);
+    const merged = [...new Set([...base, ...fromHits])].sort((a,b) => a-b);
+    return merged.slice(0, 8);
+  }, [currentYear, futureHits]);
+
+  const verifyQuestions = useMemo<YearHit[]>(() => {
+    const significant = pastHits
+      .filter(h => h.tags.some(tag => tag.includes('冲') || tag.includes('刑') || tag.includes('大运')))
+      .slice(-5);
+    if (significant.length < 2) return pastHits.slice(-3);
+    return significant;
+  }, [pastHits]);
+
   const bazi = chart.basic.bazi;
 
-  const [topic, setTopic] = useState<TopicKey | null>(null);
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
-  const [precisionOpen, setPrecisionOpen] = useState(false);
+  const [step, setStep] = useState<FlowStep>('verify');
   const [answers, setAnswers] = useState<Record<number, Answer>>({});
-  // Track how many user messages existed at click time, so we only show assistant
-  // messages that arrived AFTER the current click (avoids stale year output).
-  const [requestBaseline, setRequestBaseline] = useState<number>(0);
+  const [chosenTopic, setChosenTopic] = useState<string|null>(null);
 
+  // Load saved answers on mount / when bazi changes
   useEffect(() => {
     setAnswers(loadSavedAnswers(bazi));
   }, [bazi]);
 
-  const currentYear = new Date().getFullYear();
-  const years = useMemo(() => {
-    const arr: number[] = [];
-    for (let y = currentYear; y < currentYear + 10; y++) arr.push(y);
-    return arr;
-  }, [currentYear]);
-
-  const scoredYears = useMemo<YearScore[]>(() => {
-    return years.map(y => scoreYear(chart, y));
-  }, [years, chart]);
-
-  // Past key years for verification (algorithm based)
-  const pastVerifyYears = useMemo<YearScore[]>(() => {
-    const birthYear = chart.fortune.decades[0]?.startYear
-      ? chart.fortune.decades[0].startYear - (chart.fortune.decades[0].startAge ?? 8)
-      : currentYear - 30;
-    const start = Math.max(birthYear + 16, currentYear - 15);
-    const arr: YearScore[] = [];
-    for (let y = start; y < currentYear; y++) {
-      const s = scoreYear(chart, y);
-      // pick only ones with meaningful interactions
-      if (s.interactions.length > 0) arr.push(s);
-    }
-    return arr.slice(-5);
-  }, [chart, currentYear]);
-
-  const answeredCount = pastVerifyYears.filter(q => answers[q.year]).length;
-
-  const setAnswer = useCallback((year: number, a: Answer) => {
+  const setAnswer = useCallback((year: number, answer: Answer) => {
     setAnswers(prev => {
-      const next = { ...prev, [year]: a };
+      const next = { ...prev, [year]: answer };
       saveAnswers(bazi, next);
       return next;
     });
@@ -225,212 +166,191 @@ export function PredictionChatSection(props: {
 
   const clearAnswer = useCallback((year: number) => {
     setAnswers(prev => {
-      const { [year]: _discard, ...rest } = prev;
+      const { [year]: _, ...rest } = prev;
       saveAnswers(bazi, rest);
       return rest;
     });
   }, [bazi]);
 
-  const handleBarClick = useCallback((year: number) => {
-    if (!topic) return;
-    setSelectedYear(year);
-    // Count current user messages; we'll only show assistant messages that
-    // appear AFTER this count (prevents stale year output from flashing).
-    setRequestBaseline(messages.filter(m => m.role === 'user').length);
+  const handleTopicPick = useCallback((topic: string) => {
+    setChosenTopic(topic);
+    setStep('year');
+  }, []);
 
-    const ys = scoredYears.find(s => s.year === year);
-    if (!ys) return;
+  const handleYearPick = useCallback((year: number) => {
+    setStep('predict');
 
-    const topicLabel = zh ? topicLabelZh(topic) : topics.find(tt => tt.key === topic)?.label ?? topic;
-    const hitsDesc = ys.interactions.length > 0
-      ? ys.interactions.map(i => `${i.pillar}${i.type}(${i.desc})`).join('、')
-      : (zh ? '无明显冲合' : 'no strong interactions');
-    const daYun = ys.daYun ?? (zh ? '未知' : 'unknown');
-
-    const verifyEntries = pastVerifyYears
+    const yearHit = futureHits.find(h => h.year === year);
+    const hitDesc = yearHit ? yearHit.tags.join('、') : '无明显冲合';
+    const answeredEntries = verifyQuestions
       .map(q => ({ q, a: answers[q.year] }))
       .filter(x => x.a);
-    const verifyText = verifyEntries.length > 0
-      ? verifyEntries.map(({ q, a }) => `${q.year}年(${q.gz}) ${q.interactions.map(i=>i.desc).join('/')}：${a === 'good' ? '好' : a === 'bad' ? '不好' : '一般'}`).join('；')
-      : '';
+    const verifyText = answeredEntries.length > 0
+      ? answeredEntries.map(({ q, a }) => `${q.year}年(${q.gz}) ${q.tags.join('/')}：${a === 'good' ? '好' : a === 'bad' ? '不好' : '一般'}`).join('；')
+      : '用户跳过了验证';
 
-    const prompt = zh
-      ? `我想了解 ${year} 年（${ys.gz}）的${topicLabel}运势。\n\n流年与命盘关系：${hitsDesc}\n所在大运：${daYun}\n算法粗评分：${ys.score}/100${ys.isDaYunTransition ? '（今年是大运交接年）' : ''}\n${verifyText ? `过往验证：${verifyText}\n` : ''}\n请结合我的命盘和上述信息，分析这一年${topicLabel}方面的具体走势，指出关键月份、机会、风险，并给出可执行建议。`
-      : `I want to know about my ${topicLabel} fortune in ${year} (${ys.gz}).\n\nTransit interactions: ${hitsDesc}\nDecade luck: ${daYun}\nAlgorithmic score: ${ys.score}/100${ys.isDaYunTransition ? ' (decade transition year)' : ''}\n${verifyText ? `Past verification: ${verifyText}\n` : ''}\nPlease analyze this year's ${topicLabel} trajectory, highlight key months, opportunities, risks, and give actionable advice.`;
+    const prompt = language === 'zh'
+      ? `我想了解 ${year} 年（${yearHit?.gz ?? yearGanZhi(year).gz}）的${chosenTopic}运势。\n\n流年与命盘关系：${hitDesc}\n所在大运：${yearHit?.daYun ?? findDaYun(year, chart.fortune.decades) ?? '未知'}\n\n过往验证：${verifyText}\n\n请结合我的命盘和上述信息，分析这一年的具体运势，并给出可执行建议。`
+      : `I want to know about my ${chosenTopic} fortune in ${year} (${yearHit?.gz ?? yearGanZhi(year).gz}).\n\nTransit interactions: ${hitDesc}\nCurrent decade luck: ${yearHit?.daYun ?? findDaYun(year, chart.fortune.decades) ?? 'unknown'}\n\nPast verification: ${verifyText}\n\nPlease analyze this year's fortune based on my chart and give actionable advice.`;
 
     onSendMessage(prompt);
-  }, [topic, scoredYears, pastVerifyYears, answers, zh, topics, onSendMessage, messages]);
+  }, [answers, verifyQuestions, chosenTopic, language, futureHits, chart, onSendMessage]);
 
-  // ---------- Render ----------
-
-  // Step 1: pick topic
-  if (!topic) {
-    return (
-      <section className="panel prediction-chat-panel">
-        <div className="panel-title-row">
-          <h3>{t.predictionTitle ?? '人生预测'}</h3>
-        </div>
-        <p className="prediction-cli-prompt">
-          {zh ? '选一个话题，看未来 10 年的轨迹：' : 'Pick a topic to see your 10-year trajectory:'}
-        </p>
-        <div className="prediction-topic-grid">
-          {topics.map(tt => (
-            <button key={tt.key} type="button" className="prediction-topic-card" onClick={() => setTopic(tt.key)}>
-              <strong>{tt.label}</strong>
-              <span className="muted">{tt.hint}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  const selected = selectedYear ? scoredYears.find(s => s.year === selectedYear) : null;
-  const selectedTopicLabel = topics.find(tt => tt.key === topic)?.label ?? topic;
-  const maxScore = Math.max(...scoredYears.map(s => s.score));
-  const minScore = Math.min(...scoredYears.map(s => s.score));
+  const topics = language === 'en' ? TOPICS_EN : TOPICS_ZH;
+  const zhLabel = language === 'zh';
+  const answeredCount = verifyQuestions.filter(q => answers[q.year]).length;
 
   return (
     <section className="panel prediction-chat-panel">
-      <div className="prediction-header-row">
-        <div>
-          <h3 className="prediction-header-title">{selectedTopicLabel} · {zh ? '10 年轨迹' : '10-Year Trajectory'}</h3>
-          <p className="muted prediction-header-sub">{zh ? `${currentYear} – ${currentYear + 9}` : `${currentYear} – ${currentYear + 9}`}</p>
-        </div>
-        <button type="button" className="ghost-btn" onClick={() => { setTopic(null); setSelectedYear(null); }}>
-          {zh ? '换话题' : 'Switch topic'}
-        </button>
+      <div className="panel-title-row">
+        <h3>{t.predictionTitle ?? '人生预测'}</h3>
       </div>
 
-      {/* Precision mode — collapsible */}
-      {pastVerifyYears.length > 0 && (
-        <div className={`precision-box ${precisionOpen ? 'open' : ''}`}>
-          <button
-            type="button"
-            className="precision-toggle"
-            onClick={() => setPrecisionOpen(v => !v)}
-          >
-            <span className="precision-toggle-icon">{precisionOpen ? '▾' : '▸'}</span>
-            <span className="precision-toggle-label">
-              {zh ? '精准模式' : 'Precision mode'}
-            </span>
-            <span className="precision-toggle-status muted">
-              {answeredCount > 0
-                ? (zh ? `已填 ${answeredCount}/${pastVerifyYears.length}，分析会更贴合你` : `${answeredCount}/${pastVerifyYears.length} saved, analysis tailored`)
-                : (zh ? `可选 · 回答过往${pastVerifyYears.length}年提升准确度` : `Optional · answer past ${pastVerifyYears.length} years for accuracy`)}
-            </span>
-          </button>
-          {precisionOpen && (
-            <div className="precision-content">
-              <p className="muted precision-hint">
-                {zh
-                  ? '这些是算法找出的你过去有明显冲合的年份——你回忆一下当年整体感觉，AI 会更懂你。'
-                  : 'These are past years with significant interactions in your chart. Recall how each year felt and the AI gets a calibrated sense of you.'}
-              </p>
-              <div className="prediction-verify-list">
-                {pastVerifyYears.map(q => {
-                  const current = answers[q.year];
-                  return (
-                    <div key={q.year} className="prediction-verify-row">
-                      <div className="prediction-verify-info">
-                        <div className="prediction-verify-year-line">
-                          <strong>{q.year}</strong>
-                          <span className="muted">{q.gz}</span>
-                        </div>
-                        <div className="prediction-verify-tags">
-                          {q.interactions.slice(0, 3).map((i, idx) => (
-                            <span key={idx} className={`prediction-mini-tag ${i.type === '冲' || i.type === '刑' ? 'tag-warn' : 'tag-ok'}`}>
-                              {i.pillar.replace('柱','')}{i.type}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="prediction-verify-options">
-                        <button type="button" className={`prediction-option-btn prediction-option-good ${current === 'good' ? 'selected' : ''}`} onClick={() => current === 'good' ? clearAnswer(q.year) : setAnswer(q.year, 'good')}>👍</button>
-                        <button type="button" className={`prediction-option-btn prediction-option-neutral ${current === 'neutral' ? 'selected' : ''}`} onClick={() => current === 'neutral' ? clearAnswer(q.year) : setAnswer(q.year, 'neutral')}>😐</button>
-                        <button type="button" className={`prediction-option-btn prediction-option-bad ${current === 'bad' ? 'selected' : ''}`} onClick={() => current === 'bad' ? clearAnswer(q.year) : setAnswer(q.year, 'bad')}>👎</button>
-                      </div>
+      {/* Step: Verify — show all questions at once */}
+      {step === 'verify' && verifyQuestions.length > 0 && (
+        <div className="prediction-cli-step">
+          <p className="prediction-cli-prompt">
+            {zhLabel
+              ? '请回忆一下以下几个关键年份，校准预测准确度：'
+              : 'Please recall these key past years to calibrate prediction accuracy:'}
+          </p>
+
+          <div className="prediction-verify-list">
+            {verifyQuestions.map(q => {
+              const current = answers[q.year];
+              return (
+                <div key={q.year} className="prediction-verify-row">
+                  <div className="prediction-verify-info">
+                    <div className="prediction-verify-year-line">
+                      <strong>{q.year}</strong>
+                      <span className="muted">{q.gz}</span>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                    <div className="prediction-verify-tags">
+                      {q.tags.map(tag => (
+                        <span key={tag} className={`prediction-mini-tag ${tag.includes('冲') || tag.includes('刑') ? 'tag-warn' : 'tag-ok'}`}>
+                          {tag.replace(/\(.*\)/, '')}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="prediction-verify-options">
+                    <button
+                      type="button"
+                      className={`prediction-option-btn prediction-option-good ${current === 'good' ? 'selected' : ''}`}
+                      onClick={() => current === 'good' ? clearAnswer(q.year) : setAnswer(q.year, 'good')}
+                    >
+                      👍 {zhLabel ? '好' : 'Good'}
+                    </button>
+                    <button
+                      type="button"
+                      className={`prediction-option-btn prediction-option-neutral ${current === 'neutral' ? 'selected' : ''}`}
+                      onClick={() => current === 'neutral' ? clearAnswer(q.year) : setAnswer(q.year, 'neutral')}
+                    >
+                      😐 {zhLabel ? '一般' : 'Okay'}
+                    </button>
+                    <button
+                      type="button"
+                      className={`prediction-option-btn prediction-option-bad ${current === 'bad' ? 'selected' : ''}`}
+                      onClick={() => current === 'bad' ? clearAnswer(q.year) : setAnswer(q.year, 'bad')}
+                    >
+                      👎 {zhLabel ? '不好' : 'Bad'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="prediction-cli-meta">
+            <span className="muted">
+              {zhLabel
+                ? `已回答 ${answeredCount} / ${verifyQuestions.length}${answeredCount > 0 ? '（已自动保存）' : ''}`
+                : `Answered ${answeredCount} / ${verifyQuestions.length}${answeredCount > 0 ? ' (auto-saved)' : ''}`}
+            </span>
+            <button type="button" className="primary-btn" onClick={() => setStep('topic')}>
+              {answeredCount === 0
+                ? (zhLabel ? '跳过 →' : 'Skip →')
+                : (zhLabel ? '下一步 →' : 'Next →')}
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Trajectory bar chart */}
-      <div className="trajectory-chart">
-        {scoredYears.map(s => {
-          const height = Math.max(8, s.score - 10); // minimum visible height
-          return (
-            <button
-              key={s.year}
-              type="button"
-              className={`trajectory-bar tone-${s.tone} ${selectedYear === s.year ? 'active' : ''} ${s.isDaYunTransition ? 'transition' : ''}`}
-              onClick={() => handleBarClick(s.year)}
-              title={`${s.year} ${s.gz} · ${s.score}`}
-            >
-              <span className="trajectory-bar-score">{s.score}</span>
-              <span className="trajectory-bar-fill" style={{ height: `${height}%` }} />
-              <span className="trajectory-bar-year">{s.year}</span>
-              <span className="trajectory-bar-gz">{s.gz}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="trajectory-legend">
-        <span><span className="dot tone-good" />{zh ? '顺势' : 'Good'}</span>
-        <span><span className="dot tone-mixed" />{zh ? '混合' : 'Mixed'}</span>
-        <span><span className="dot tone-flat" />{zh ? '平稳' : 'Flat'}</span>
-        <span><span className="dot tone-bad" />{zh ? '挑战' : 'Challenge'}</span>
-        <span className="muted">· {zh ? `区间 ${minScore}-${maxScore}` : `range ${minScore}-${maxScore}`}</span>
-      </div>
-
-      {/* AI analysis section — appears after clicking a bar */}
-      {selected && (
-        <div className="trajectory-detail">
-          <div className="trajectory-detail-head">
-            <strong>{selected.year} · {selected.gz}</strong>
-            <span className="muted">
-              {zh ? `${selectedTopicLabel}得分 ${selected.score}` : `${selectedTopicLabel} score ${selected.score}`}
-              {selected.daYun ? ` · ${zh ? '大运' : 'Decade'} ${selected.daYun}` : ''}
-            </span>
-          </div>
-          {selected.interactions.length > 0 && (
-            <div className="trajectory-detail-tags">
-              {selected.interactions.map((i, idx) => (
-                <span key={idx} className={`prediction-mini-tag ${i.type === '冲' || i.type === '刑' ? 'tag-warn' : 'tag-ok'}`}>
-                  {i.pillar.replace('柱','')}{i.type}·{i.desc}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {(() => {
-            // Only show assistant messages that arrived AFTER the current click.
-            const userCount = messages.filter(m => m.role === 'user').length;
-            const isFresh = userCount > requestBaseline;
-            const lastAssistant = isFresh ? [...messages].reverse().find(m => m.role === 'assistant') : null;
-
-            if (sending || !lastAssistant) {
-              return (
-                <div className="trajectory-ai-loading">
-                  <div className="trajectory-ai-spinner" />
-                  <span className="muted">{zh ? 'AI 分析中...' : 'Analyzing...'}</span>
-                </div>
-              );
-            }
-            return (
-              <div className="trajectory-ai-output">
-                {lastAssistant.content.split('\n').filter(line => line.trim().length > 0).map((line, i) => (
-                  <p key={i}>{line}</p>
-                ))}
-              </div>
-            );
-          })()}
+      {step === 'verify' && verifyQuestions.length === 0 && (
+        <div className="prediction-cli-step">
+          <p className="muted">{zhLabel ? '命盘数据不足以生成验证问题，直接选择话题。' : 'Not enough data for verification. Pick a topic.'}</p>
+          <button type="button" className="ghost-btn" onClick={() => setStep('topic')}>{zhLabel ? '继续 →' : 'Continue →'}</button>
         </div>
+      )}
+
+      {/* Step: Topic */}
+      {step === 'topic' && (
+        <div className="prediction-cli-step">
+          <p className="prediction-cli-prompt">{zhLabel ? '你想看哪个方向？' : 'What area would you like to explore?'}</p>
+          <div className="prediction-cli-options">
+            {topics.map(topic => (
+              <button key={topic} type="button" className="prediction-option-btn" onClick={() => handleTopicPick(topic)}>
+                {topic}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Step: Year */}
+      {step === 'year' && (
+        <div className="prediction-cli-step">
+          <p className="prediction-cli-prompt">{zhLabel ? `看${chosenTopic}——选一个年份：` : `${chosenTopic} — pick a year:`}</p>
+          <div className="prediction-cli-options prediction-cli-year-grid">
+            {futureYears.map(year => {
+              const hit = futureHits.find(h => h.year === year);
+              return (
+                <button key={year} type="button" className="prediction-year-option" onClick={() => handleYearPick(year)}>
+                  <span className="prediction-year-option-year">{year}</span>
+                  <span className="prediction-year-option-gz">{yearGanZhi(year).gz}</span>
+                  {hit && hit.tags.length > 0 && (
+                    <span className="prediction-year-option-tags">
+                      {hit.tags.slice(0, 2).map(tag => {
+                        const short = tag.replace(/\(.*\)/, '');
+                        return <span key={tag} className={`prediction-mini-tag ${tag.includes('冲') || tag.includes('刑') ? 'tag-warn' : 'tag-ok'}`}>{short}</span>;
+                      })}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Step: Predict — show chat */}
+      {step === 'predict' && (
+        <>
+          <div className="result-chat-thread">
+            {messages.filter(m => m.role !== 'system').map((message, index) => (
+              <article key={message.id ?? `${message.role}-${index}`} className={`chat-bubble ${message.role}`}>
+                <div className="chat-bubble-head">
+                  <strong>{roleLabel(message.role, t)}</strong>
+                </div>
+                <p>{message.content}</p>
+              </article>
+            ))}
+          </div>
+          <div className="result-chat-composer">
+            <textarea
+              value={draft}
+              onChange={e => onDraftChange(e.target.value)}
+              placeholder={t.predictionChatPlaceholder ?? '继续追问...'}
+              rows={2}
+            />
+            <button type="button" className="primary-btn result-chat-submit" onClick={onSubmit} disabled={sending}>
+              {sending ? (t.diagnosisChatSending ?? '分析中...') : (t.predictionChatSend ?? '发送')}
+            </button>
+          </div>
+          <button type="button" className="ghost-btn prediction-restart-btn" onClick={() => { setStep('verify'); setChosenTopic(null); }}>
+            {zhLabel ? '重新开始' : 'Start over'}
+          </button>
+        </>
       )}
     </section>
   );

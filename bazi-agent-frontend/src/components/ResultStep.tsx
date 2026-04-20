@@ -159,8 +159,11 @@ export function ResultStep(props: {
           language={language}
           chart={chart}
           messages={chatMessages}
+          draft={chatDraft}
           sending={chatSending}
+          onDraftChange={onChatDraftChange}
           onSendMessage={(text: string) => { onChatDraftChange(text); setTimeout(() => onChatSubmit(), 0); }}
+          onSubmit={onChatSubmit}
         />
       ) : (
         <section className="panel result-ai-empty">
