@@ -160,12 +160,6 @@ function topicLabelZh(key: TopicKey): string {
   return TOPICS_ZH.find(t => t.key === key)?.label ?? key;
 }
 
-function roleLabel(role: ChatMessage['role'], t: Record<string, string>): string {
-  if (role === 'user') return t.diagnosisChatUser ?? '你';
-  if (role === 'assistant') return t.diagnosisChatAssistant ?? 'AI';
-  return role;
-}
-
 // ---- Component ----
 
 export function PredictionChatSection(props: {
@@ -173,13 +167,10 @@ export function PredictionChatSection(props: {
   language: string;
   chart: NormalizedChartRich;
   messages: ChatMessage[];
-  draft: string;
   sending: boolean;
-  onDraftChange: (value: string) => void;
   onSendMessage: (text: string) => void;
-  onSubmit: () => void;
 }) {
-  const { t, language, chart, messages, draft, sending, onDraftChange, onSendMessage, onSubmit } = props;
+  const { t, language, chart, messages, sending, onSendMessage } = props;
   const zh = language === 'zh';
   const topics = zh ? TOPICS_ZH : TOPICS_EN;
   const bazi = chart.basic.bazi;
@@ -412,25 +403,25 @@ export function PredictionChatSection(props: {
             </div>
           )}
 
-          <div className="result-chat-thread trajectory-chat-thread">
-            {messages.filter(m => m.role !== 'system').length === 0 ? (
-              <p className="muted">{sending ? (zh ? 'AI 分析中...' : 'Analyzing...') : ''}</p>
-            ) : (
-              messages.filter(m => m.role !== 'system').map((message, index) => (
-                <article key={message.id ?? `${message.role}-${index}`} className={`chat-bubble ${message.role}`}>
-                  <div className="chat-bubble-head"><strong>{roleLabel(message.role, t)}</strong></div>
-                  <p>{message.content}</p>
-                </article>
-              ))
-            )}
-          </div>
-
-          <div className="result-chat-composer">
-            <textarea value={draft} onChange={e => onDraftChange(e.target.value)} placeholder={zh ? '继续追问这一年...' : 'Ask a follow-up...'} rows={2} />
-            <button type="button" className="primary-btn result-chat-submit" onClick={onSubmit} disabled={sending}>
-              {sending ? (t.diagnosisChatSending ?? '分析中...') : (t.predictionChatSend ?? '发送')}
-            </button>
-          </div>
+          {(() => {
+            const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+            if (sending && !lastAssistant) {
+              return (
+                <div className="trajectory-ai-loading">
+                  <div className="trajectory-ai-spinner" />
+                  <span className="muted">{zh ? 'AI 分析中...' : 'Analyzing...'}</span>
+                </div>
+              );
+            }
+            if (!lastAssistant) return null;
+            return (
+              <div className="trajectory-ai-output">
+                {lastAssistant.content.split('\n').filter(line => line.trim().length > 0).map((line, i) => (
+                  <p key={i}>{line}</p>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
     </section>

@@ -2689,8 +2689,47 @@ textarea {
   gap: 4px;
 }
 
-.trajectory-chat-thread {
-  max-height: 400px;
+.trajectory-ai-output {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #fafbff;
+  border-left: 3px solid #6366f1;
+  border-radius: 6px;
+  animation: trajectory-ai-fade 0.25s ease-out;
+}
+
+.trajectory-ai-output p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: var(--ink-0);
+}
+
+.trajectory-ai-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 14px;
+}
+
+.trajectory-ai-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--line);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: trajectory-spin 0.7s linear infinite;
+}
+
+@keyframes trajectory-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes trajectory-ai-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (max-width: 640px) {
