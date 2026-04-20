@@ -134,11 +134,14 @@ export interface ModelProvider {
   generateReply(messages: ModelMessage[]): Promise<string>;
 }
 
+export type Language = 'zh' | 'en';
+
 export interface AgentChatInput {
   userExternalId: string;
   sessionId?: string | undefined;
   message: string;
   mode?: 'diagnosis' | 'prediction' | undefined;
+  language?: Language | undefined;
   userProfile?: {
     displayName?: string | undefined;
     gender?: 0 | 1 | undefined;

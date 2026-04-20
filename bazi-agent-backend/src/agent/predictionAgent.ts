@@ -22,9 +22,14 @@ interface OpenAIResponse {
 
 const MAX_STEPS = 6;
 
-function buildPredictionSystemPrompt(): string {
+function buildPredictionSystemPrompt(language: 'zh' | 'en' = 'zh'): string {
+  const isEnglish = language === 'en';
+  const outputLanguage = isEnglish
+    ? 'Write your final answer in fluent, professional English. Keep bazi-specific tags (干支 like 甲辰, 冲/合/刑, 七杀, etc.) in their Chinese form when quoting algorithm output, but the explanation must be in English.'
+    : '用专业、克制、清晰的中文作答。';
+
   return [
-    '你是一个中文八字预测 agent。你的任务是回答用户关于具体年份、运势走向的问题。',
+    '你是一个八字预测 agent。你的任务是回答用户关于具体年份、运势走向的问题。',
     '',
     '你有一组工具可以调用：',
     '- get_natal_summary：拿命盘基础事实（用前必先调用一次）',
@@ -37,11 +42,13 @@ function buildPredictionSystemPrompt(): string {
     '1. 先调用 get_natal_summary 了解命盘（如果还没有）。',
     '2. 用户问到具体年份时，必须先调 compute_year_interactions 和 get_dayun_at_year 拿到精确数据，不要凭感觉。',
     '3. 需要引用典籍时调 lookup_classic_book。',
-    '4. 拿到所有需要的数据后，给出简洁专业的中文回答，引用算法结果和典籍。',
+    '4. 拿到所有需要的数据后，给出简洁专业的回答，引用算法结果和典籍。',
     '5. 不要一次性调所有工具——按需调用，保持高效。',
     '6. 回答要克制、不夸张、不宿命论，给出可执行建议。',
     '',
     '重要：所有关于干支、冲合刑、大运的事实判断都必须通过工具获取，不可自行推算。',
+    '',
+    outputLanguage,
   ].join('\n');
 }
 
@@ -84,12 +91,13 @@ export async function runPredictionAgent(params: {
   apiKey: string;
   userMessage: string;
   priorTurns: Array<{ role: 'user' | 'assistant'; content: string }>;
+  language?: 'zh' | 'en';
   ctx: ToolContext;
 }): Promise<AgentRunResult> {
-  const { apiKey, userMessage, priorTurns, ctx } = params;
+  const { apiKey, userMessage, priorTurns, language = 'zh', ctx } = params;
 
   const messages: OpenAIMessage[] = [
-    { role: 'system', content: buildPredictionSystemPrompt() },
+    { role: 'system', content: buildPredictionSystemPrompt(language) },
     ...priorTurns.map((t) => ({ role: t.role, content: t.content })),
     { role: 'user', content: userMessage },
   ];

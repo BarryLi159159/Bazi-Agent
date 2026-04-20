@@ -321,6 +321,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
       user,
       session,
       userMessageContent: input.message,
+      language: input.language,
     });
   }
 
@@ -416,6 +417,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     memories,
     baziData: activeUser.bazi_json,
     transitData: transit,
+    language: input.language,
     ...(bookRagSnippets.length > 0 ? { bookRagSnippets } : {}),
   });
 
@@ -439,7 +441,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
       transitGeneratedAt: transit?.generatedAt,
       evidenceSources,
     });
-    answerSystemPrompt = buildAnswerSystemPrompt({ user: activeUser, analysis: structured });
+    answerSystemPrompt = buildAnswerSystemPrompt({ user: activeUser, analysis: structured, language: input.language });
     assistantMessage = await modelProvider.generateReply([
       { role: 'system', content: answerSystemPrompt },
       { role: 'user', content: input.message },
@@ -454,7 +456,7 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
       transitGeneratedAt: transit?.generatedAt,
       evidenceSources,
     });
-    answerSystemPrompt = buildAnswerSystemPrompt({ user: activeUser, analysis: structured });
+    answerSystemPrompt = buildAnswerSystemPrompt({ user: activeUser, analysis: structured, language: input.language });
     assistantMessage = await fallback.generateReply([
       { role: 'system', content: answerSystemPrompt },
       { role: 'user', content: input.message },
@@ -532,8 +534,9 @@ async function runPredictionChat(params: {
   user: { id: string; bazi_json: unknown };
   session: { id: string };
   userMessageContent: string;
+  language?: 'zh' | 'en' | undefined;
 }): Promise<AgentChatResult> {
-  const { user, session, userMessageContent } = params;
+  const { user, session, userMessageContent, language } = params;
 
   const apiKey = (await resolveUserOpenAiKey(user.id))?.trim() || config.OPENAI_API_KEY;
   if (!apiKey) {
@@ -561,6 +564,7 @@ async function runPredictionChat(params: {
     apiKey,
     userMessage: userMessageContent,
     priorTurns,
+    language: language ?? 'zh',
     ctx: {
       chartRich,
       currentYear: new Date().getFullYear(),

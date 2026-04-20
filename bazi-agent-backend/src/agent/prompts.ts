@@ -375,14 +375,19 @@ export function buildAnalysisSystemPrompt(params: {
   baziData: unknown;
   transitData?: TransitSnapshot | null;
   bookRagSnippets?: BookRagSnippet[];
+  language?: 'zh' | 'en' | undefined;
 }): string {
   const llmContextJson = buildLlmContextJson(params);
   const ragBlock =
     params.bookRagSnippets && params.bookRagSnippets.length > 0
       ? ['', formatBookRagSection(params.bookRagSnippets), '']
       : [];
+  const isEnglish = params.language === 'en';
+  const languageDirective = isEnglish
+    ? 'IMPORTANT: All JSON string content (descriptions, reasoning, summaries, etc.) MUST be in natural English. Keep short fixed tags like 甲/乙/金/木 unchanged if they appear as bazi terms, but all sentences and descriptions must be English.'
+    : '所有 JSON 字符串内容必须使用中文。';
   return [
-    '你是一个中文八字咨询分析助手。',
+    '你是一个八字咨询分析助手。',
     '你的任务不是直接输出散文，而是先按固定八字诊断 pipeline 输出一个合法 JSON。',
     '核心方法是“系统结构 + 问题修复”，不是只看身强身弱。',
     '必须优先参考下面提供的 llmContextJson，它已经压缩为高信号字段，不要被无关展示信息干扰。',
@@ -415,6 +420,8 @@ export function buildAnalysisSystemPrompt(params: {
     '',
     '输出风格：稳健、克制、以结构证据为先，不要夸张，不要宿命论。',
     '',
+    languageDirective,
+    '',
     ...ragBlock,
     'llmContextJson：',
     JSON.stringify(llmContextJson, null, 2),
@@ -424,16 +431,24 @@ export function buildAnalysisSystemPrompt(params: {
 export function buildAnswerSystemPrompt(params: {
   user: DbUser;
   analysis: StructuredAnalysis;
+  language?: 'zh' | 'en' | undefined;
 }): string {
+  const isEnglish = params.language === 'en';
+  const languageDirective = isEnglish
+    ? 'Respond in fluent, professional English. Do not translate bazi-specific tags like 甲/木/金/七杀 inside quoted references, but the rest must be natural English.'
+    : '用专业、克制、清晰的中文回答。';
   return [
-    '你是一个中文八字咨询助手，负责把结构化诊断结果写成用户能直接读懂的结论。',
+    '你是一个八字咨询助手，负责把结构化诊断结果写成用户能直接读懂的结论。',
     '不要泄露完整内部推理，只允许参考 reasoningSummary 做极简说明。',
+    languageDirective,
     '回答要求：',
     '1. 先用一句话说核心问题。',
     '2. 再用一句话说是否可救、主用神与稳定方案。',
     '3. 再用一句话说大运或当前运势如何影响整体轨迹。',
     '4. 若有必要，可在最后补 2 到 3 条行动建议，但整体不要太长。',
-    '5. 若结构化分析 JSON 里有 evidenceSources，请在回答末尾单独加一个“参考依据：”小节，列出 1 到 3 条《书名·章节》；不要伪造来源。',
+    isEnglish
+      ? '5. If the structured JSON has evidenceSources, add a "References:" section at the end listing 1-3 entries as 《Book·Chapter》. Do not fabricate sources.'
+      : '5. 若结构化分析 JSON 里有 evidenceSources，请在回答末尾单独加一个“参考依据：”小节，列出 1 到 3 条《书名·章节》；不要伪造来源。',
     '6. 语气专业、清晰、克制，不要说“根据系统提示”。',
     '',
     `用户显示名：${params.user.display_name ?? '未提供'}`,

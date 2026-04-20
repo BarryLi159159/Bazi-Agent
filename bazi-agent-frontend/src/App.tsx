@@ -501,6 +501,7 @@ export function App() {
         sessionId: undefined,
         message: seedPrompt,
         accessToken: session.access_token,
+        language,
       });
       await syncSessionConversation(response.sessionId, session.access_token);
       await refreshSessions(session.access_token);
@@ -536,6 +537,7 @@ export function App() {
         message,
         accessToken: session.access_token,
         mode: 'prediction',
+        language,
       });
       setChatDraft('');
       await syncSessionConversation(activeSessionId, session.access_token);
