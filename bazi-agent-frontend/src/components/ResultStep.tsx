@@ -75,12 +75,12 @@ export function ResultStep(props: {
 
       <section className="result-meta-strip panel">
         {[
-          ['性别', chart.basic.gender],
-          ['生肖', chart.basic.zodiac],
-          ['命宫', chart.basic.mingGong],
-          ['身宫', chart.basic.shenGong],
-          ['胎元', chart.basic.taiYuan],
-          ['胎息', chart.basic.taiXi],
+          [t.labelGender ?? 'Gender', chart.basic.gender],
+          [t.labelZodiac ?? 'Zodiac', chart.basic.zodiac],
+          [t.labelMingGong ?? 'Life Palace', chart.basic.mingGong],
+          [t.labelShenGong ?? 'Body Palace', chart.basic.shenGong],
+          [t.labelTaiYuan ?? 'Fetal Origin', chart.basic.taiYuan],
+          [t.labelTaiXi ?? 'Fetal Breath', chart.basic.taiXi],
         ].map(([label, value]) => (
           <div key={label} className="meta-pill">
             <small>{label}</small>
@@ -107,8 +107,8 @@ export function ResultStep(props: {
       {activeView === 'chart' ? (
         <>
           <div className="result-top-grid">
-            <PillarsSection title={t.panelPillars} pillars={chart.pillars} />
-            <FiveElementsSection title={t.panelElements} data={chart.fiveElements} />
+            <PillarsSection title={t.panelPillars} pillars={chart.pillars} t={t} />
+            <FiveElementsSection title={t.panelElements} data={chart.fiveElements} t={t} />
           </div>
 
           <TransitSection t={t} transit={transit} />
@@ -125,7 +125,7 @@ export function ResultStep(props: {
 
           <div className="result-bottom-grid">
             <GodsSection title={t.panelGods} gods={chart.gods} />
-            <RelationsSection title={t.panelRelations} highlights={chart.relations.highlights} />
+            <RelationsSection title={t.panelRelations} highlights={chart.relations.highlights} t={t} />
           </div>
         </>
       ) : activeView === 'ai' ? (

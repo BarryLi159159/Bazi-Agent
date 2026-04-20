@@ -28,11 +28,11 @@ export function FortuneSection(props: {
 
       <div className="fortune-summary-row">
         <div className="fortune-summary-card">
-          <small>起运年龄</small>
+          <small>{t.fortuneStartAge ?? '起运年龄'}</small>
           <strong>{startAge ?? '-'}</strong>
         </div>
         <div className="fortune-summary-card">
-          <small>起运日期</small>
+          <small>{t.fortuneStartDate ?? '起运日期'}</small>
           <strong>{startDate || '-'}</strong>
         </div>
         <div className="fortune-summary-card">

@@ -94,15 +94,15 @@ export function ConfirmStep(props: {
 
       <div className="confirm-basic">
         <div>
-          <span>八字</span>
+          <span>{t.confirmBazi ?? '八字'}</span>
           <strong>{String(bazi?.['八字'] ?? '-')}</strong>
         </div>
         <div>
-          <span>农历</span>
+          <span>{t.confirmLunar ?? '农历'}</span>
           <strong>{String(bazi?.['农历'] ?? '-')}</strong>
         </div>
         <div>
-          <span>阳历</span>
+          <span>{t.confirmSolar ?? '阳历'}</span>
           <strong>{String(bazi?.['阳历'] ?? '-')}</strong>
         </div>
       </div>

@@ -36,8 +36,10 @@ function renderHiddenStems(hiddenStems: Array<{ slot: string; stem: string; tenG
 export function PillarsSection(props: {
   title: string;
   pillars: NormalizedPillar[];
+  t?: Record<string, string>;
 }) {
-  const { title, pillars } = props;
+  const { title, pillars, t } = props;
+  const label = (key: string, fallback: string): string => t?.[key] ?? fallback;
 
   return (
     <section className="panel pillars-panel">
@@ -48,23 +50,23 @@ export function PillarsSection(props: {
 
       <div className="pillars-grid">
         <div className="pillars-row head">
-          <span>日期</span>
+          <span>{label('pillarDate', '日期')}</span>
           {pillars.map((pillar) => (
             <span key={pillar.key}>{pillar.label}</span>
           ))}
         </div>
 
         <div className="pillars-row subtle">
-          <span>十神</span>
+          <span>{label('pillarTenGod', '十神')}</span>
           {pillars.map((pillar) => (
             <span key={`${pillar.key}-ten`}>
-              {pillar.key === 'day' && (!pillar.stemTenGod || pillar.stemTenGod === '-') ? '日主' : pillar.stemTenGod}
+              {pillar.key === 'day' && (!pillar.stemTenGod || pillar.stemTenGod === '-') ? label('diagnosisDayMasterLabel', '日主') : pillar.stemTenGod}
             </span>
           ))}
         </div>
 
         <div className="pillars-row">
-          <span>天干</span>
+          <span>{label('pillarStem', '天干')}</span>
           {pillars.map((pillar) => (
             <strong key={`${pillar.key}-stem`} className={elementClass(pillar.stemElement)}>
               {pillar.stem}
@@ -73,7 +75,7 @@ export function PillarsSection(props: {
         </div>
 
         <div className="pillars-row">
-          <span>地支</span>
+          <span>{label('pillarBranch', '地支')}</span>
           {pillars.map((pillar) => (
             <strong key={`${pillar.key}-branch`} className={elementClass(pillar.branchElement)}>
               {pillar.branch}
@@ -82,7 +84,7 @@ export function PillarsSection(props: {
         </div>
 
         <div className="pillars-row subtle">
-          <span>阴阳</span>
+          <span>{label('pillarYinYang', '阴阳')}</span>
           {pillars.map((pillar) => (
             <span key={`${pillar.key}-yinyang`}>
               {pillar.stemYinYang}/{pillar.branchYinYang}
@@ -91,14 +93,14 @@ export function PillarsSection(props: {
         </div>
 
         <div className="pillars-row subtle">
-          <span>藏干</span>
+          <span>{label('pillarHiddenStems', '藏干')}</span>
           {pillars.map((pillar) => (
             <div key={`${pillar.key}-hidden`}>{renderHiddenStems(pillar.hiddenStems)}</div>
           ))}
         </div>
 
         <div className="pillars-row subtle">
-          <span>旬空</span>
+          <span>{label('pillarKongWang', '旬空')}</span>
           {pillars.map((pillar) => (
             <span key={`${pillar.key}-xunkong`}>
               {pillar.xun} / {pillar.kongWang}
@@ -107,7 +109,7 @@ export function PillarsSection(props: {
         </div>
 
         <div className="pillars-row subtle">
-          <span>星运/自坐</span>
+          <span>{label('pillarXingYunZiZuo', '星运/自坐')}</span>
           {pillars.map((pillar) => (
             <span key={`${pillar.key}-terrain`}>
               {pillar.xingYun} / {pillar.ziZuo}
@@ -116,7 +118,7 @@ export function PillarsSection(props: {
         </div>
 
         <div className="pillars-row subtle last">
-          <span>纳音</span>
+          <span>{label('pillarNaYin', '纳音')}</span>
           {pillars.map((pillar) => (
             <span key={`${pillar.key}-nayin`}>{pillar.naYin}</span>
           ))}

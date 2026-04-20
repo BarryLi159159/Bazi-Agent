@@ -11,8 +11,9 @@ const ELEMENT_BAR_CLASS: Record<string, string> = {
 export function FiveElementsSection(props: {
   title: string;
   data: NormalizedFiveElements;
+  t?: Record<string, string>;
 }) {
-  const { title, data } = props;
+  const { title, data, t } = props;
   const items = [
     { key: '金', value: data.metal },
     { key: '木', value: data.wood },
@@ -56,9 +57,9 @@ export function FiveElementsSection(props: {
       </div>
 
       <div className="meta-row">
-        <span>强弱: {data.strength ?? '-'}</span>
-        <span>中值: {data.median ?? '-'}</span>
-        <span>强根: {data.strongRoot || '-'}</span>
+        <span>{t?.fiveElementStrength ?? '强弱'}: {data.strength ?? '-'}</span>
+        <span>{t?.fiveElementMedian ?? '中值'}: {data.median ?? '-'}</span>
+        <span>{t?.fiveElementRoot ?? '强根'}: {data.strongRoot || '-'}</span>
       </div>
     </section>
   );

@@ -9,55 +9,55 @@ function formatConfidence(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
-function structurePatternLabel(pattern: StructuredAnalysis['structureType']['pattern']): string {
+function structurePatternLabel(pattern: StructuredAnalysis['structureType']['pattern'], t: Record<string, string>): string {
   switch (pattern) {
     case 'ordinary':
-      return '普通格';
+      return t.diagnosisPatternOrdinary ?? '普通格';
     case 'follow':
-      return '从格';
+      return t.diagnosisPatternFollow ?? '从格';
     case 'transform':
-      return '化格';
+      return t.diagnosisPatternTransform ?? '化格';
     default:
-      return '待定';
+      return t.diagnosisPatternUncertain ?? '待定';
   }
 }
 
-function dayMasterStrengthLabel(strength: StructuredAnalysis['capacity']['dayMasterStrength']): string {
+function dayMasterStrengthLabel(strength: StructuredAnalysis['capacity']['dayMasterStrength'], t: Record<string, string>): string {
   switch (strength) {
     case 'weak':
-      return '偏弱';
+      return t.diagnosisStrengthWeak ?? '偏弱';
     case 'balanced':
-      return '平衡';
+      return t.diagnosisStrengthBalanced ?? '平衡';
     case 'strong':
-      return '偏强';
+      return t.diagnosisStrengthStrong ?? '偏强';
     default:
       return strength;
   }
 }
 
-function stabilityLabel(level: StructuredAnalysis['stability']['level']): string {
+function stabilityLabel(level: StructuredAnalysis['stability']['level'], t: Record<string, string>): string {
   switch (level) {
     case 'stable':
-      return '稳定';
+      return t.diagnosisStableTag ?? '稳定';
     case 'semi_stable':
-      return '半稳定';
+      return t.diagnosisSemiStableTag ?? '半稳定';
     case 'fragile':
-      return '脆弱';
+      return t.diagnosisFragileTag ?? '脆弱';
     default:
       return level;
   }
 }
 
-function luckEffectLabel(effectType: StructuredAnalysis['luckFlow']['effectType']): string {
+function luckEffectLabel(effectType: StructuredAnalysis['luckFlow']['effectType'], t: Record<string, string>): string {
   switch (effectType) {
     case 'repair':
-      return '修复结构';
+      return t.diagnosisLuckRepair ?? '修复结构';
     case 'amplify_failure':
-      return '放大病点';
+      return t.diagnosisLuckAmplify ?? '放大病点';
     case 'collapse_trigger':
-      return '触发败局';
+      return t.diagnosisLuckCollapse ?? '触发败局';
     case 'mixed':
-      return '正负并行';
+      return t.diagnosisLuckMixed ?? '正负并行';
     default:
       return effectType;
   }
@@ -204,15 +204,15 @@ export function BaziDiagnosisSection(props: {
               <div className="diagnosis-kv-grid">
                 <div className="diagnosis-kv">
                   <small>{t.diagnosisStructureTypeLabel ?? '格局'}</small>
-                  <span>{structurePatternLabel(analysis.structureType.pattern)}</span>
+                  <span>{structurePatternLabel(analysis.structureType.pattern, t)}</span>
                 </div>
                 <div className="diagnosis-kv">
                   <small>{t.diagnosisDayMasterLabel ?? '日主'}</small>
-                  <span>{dayMasterStrengthLabel(analysis.capacity.dayMasterStrength)}</span>
+                  <span>{dayMasterStrengthLabel(analysis.capacity.dayMasterStrength, t)}</span>
                 </div>
                 <div className="diagnosis-kv">
                   <small>{t.diagnosisStabilityLabel ?? '稳定性'}</small>
-                  <span>{stabilityLabel(analysis.stability.level)}</span>
+                  <span>{stabilityLabel(analysis.stability.level, t)}</span>
                 </div>
                 <div className="diagnosis-kv">
                   <small>{t.diagnosisRescueLabel ?? '可救性'}</small>
@@ -249,7 +249,7 @@ export function BaziDiagnosisSection(props: {
               <div className="diagnosis-kv-grid">
                 <div className="diagnosis-kv">
                   <small>{t.diagnosisLuckEffectLabel ?? '运势作用'}</small>
-                  <span>{luckEffectLabel(analysis.luckFlow.effectType)}</span>
+                  <span>{luckEffectLabel(analysis.luckFlow.effectType, t)}</span>
                 </div>
               </div>
               <p>{analysis.luckFlow.summary}</p>

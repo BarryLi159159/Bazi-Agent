@@ -83,7 +83,7 @@ export function TransitSection(props: {
                 <span>{layer.xingYun || '-'}</span>
               </div>
               <div>
-                <small>空亡</small>
+                <small>{t.transitKongWang ?? '空亡'}</small>
                 <span>{layer.kongWang || '-'}</span>
               </div>
             </div>
