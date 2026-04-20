@@ -6,7 +6,6 @@ import type { ChatMessage } from '../../types';
 
 const STEMS = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
 const BRANCHES = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
-const STEM_ELEMENT: Record<string,string> = {甲:'木',乙:'木',丙:'火',丁:'火',戊:'土',己:'土',庚:'金',辛:'金',壬:'水',癸:'水'};
 const BRANCH_CLASH = ['子午','丑未','寅申','卯酉','辰戌','巳亥'];
 const BRANCH_COMBINE = ['子丑','寅亥','卯戌','辰酉','巳申','午未'];
 const BRANCH_HARM = ['子卯','寅巳','丑戌','戌未'];
@@ -64,53 +63,7 @@ function isDaYunTransition(year: number, decades: NormalizedFortuneDecade[]): bo
 // ---- CLI flow state ----
 
 type FlowStep = 'verify' | 'topic' | 'year' | 'predict';
-
-interface VerifyQuestion { year: number; gz: string; tags: string[]; answer?: 'good'|'bad'|'neutral' }
-
-const VERIFY_STORAGE_PREFIX = 'bazi:prediction-verify';
-
-type AnswerLevel = 'good' | 'bad' | 'neutral';
-
-function chartFingerprint(chart: NormalizedChartRich): string {
-  const bazi = chart.basic.bazi?.trim();
-  if (bazi) return bazi;
-  return chart.pillars.map((p) => `${p.stem}${p.branch}`).join('');
-}
-
-function verifyStorageKey(fingerprint: string): string {
-  return `${VERIFY_STORAGE_PREFIX}:${encodeURIComponent(fingerprint)}`;
-}
-
-function loadSavedVerifyByYear(fingerprint: string): Record<number, AnswerLevel> {
-  try {
-    const raw = localStorage.getItem(verifyStorageKey(fingerprint));
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as { byYear?: Record<string, string> };
-    const byYear = parsed?.byYear;
-    if (!byYear || typeof byYear !== 'object') return {};
-    const out: Record<number, AnswerLevel> = {};
-    for (const [y, v] of Object.entries(byYear)) {
-      const year = Number(y);
-      if (!Number.isFinite(year)) continue;
-      if (v === 'good' || v === 'bad' || v === 'neutral') out[year] = v;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-function saveVerifyByYear(fingerprint: string, map: Record<number, AnswerLevel>): void {
-  try {
-    const byYear: Record<string, AnswerLevel> = {};
-    for (const [y, v] of Object.entries(map)) {
-      byYear[String(y)] = v;
-    }
-    localStorage.setItem(verifyStorageKey(fingerprint), JSON.stringify({ byYear, updatedAt: new Date().toISOString() }));
-  } catch {
-    /* ignore quota */
-  }
-}
+type Answer = 'good' | 'bad' | 'neutral';
 
 const TOPICS_ZH = ['事业','财运','感情','健康','综合'];
 const TOPICS_EN = ['Career','Wealth','Love','Health','General'];
@@ -119,6 +72,40 @@ function roleLabel(role: ChatMessage['role'], t: Record<string, string>): string
   if (role === 'user') return t.diagnosisChatUser ?? '你';
   if (role === 'assistant') return t.diagnosisChatAssistant ?? 'AI';
   return role;
+}
+
+// ---- localStorage persistence ----
+
+const STORAGE_PREFIX = 'bazi:prediction:verify:';
+
+function storageKey(bazi: string): string {
+  return STORAGE_PREFIX + (bazi || 'unknown').replace(/\s+/g, '');
+}
+
+function loadSavedAnswers(bazi: string): Record<number, Answer> {
+  try {
+    const raw = localStorage.getItem(storageKey(bazi));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, Answer>;
+    const result: Record<number, Answer> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      const year = Number(k);
+      if (Number.isFinite(year) && (v === 'good' || v === 'bad' || v === 'neutral')) {
+        result[year] = v;
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function saveAnswers(bazi: string, answers: Record<number, Answer>) {
+  try {
+    localStorage.setItem(storageKey(bazi), JSON.stringify(answers));
+  } catch {
+    /* ignore quota errors */
+  }
 }
 
 // ---- Component ----
@@ -150,53 +137,40 @@ export function PredictionChatSection(props: {
     return merged.slice(0, 8);
   }, [currentYear, futureHits]);
 
-  const verifyQuestions = useMemo<VerifyQuestion[]>(() => {
+  const verifyQuestions = useMemo<YearHit[]>(() => {
     const significant = pastHits
-      .filter((h) => h.tags.some((tag) => tag.includes('冲') || tag.includes('刑') || tag.includes('大运')))
+      .filter(h => h.tags.some(tag => tag.includes('冲') || tag.includes('刑') || tag.includes('大运')))
       .slice(-5);
-    const raw =
-      significant.length >= 2
-        ? significant.map((h) => ({ year: h.year, gz: h.gz, tags: h.tags }))
-        : pastHits.slice(-3).map((h) => ({ year: h.year, gz: h.gz, tags: h.tags }));
-    return raw.slice(0, 5);
+    if (significant.length < 2) return pastHits.slice(-3);
+    return significant;
   }, [pastHits]);
 
-  const fingerprint = useMemo(() => chartFingerprint(chart), [chart]);
+  const bazi = chart.basic.bazi;
 
   const [step, setStep] = useState<FlowStep>('verify');
-  const [verifySelections, setVerifySelections] = useState<Record<number, AnswerLevel>>({});
-  const [answers, setAnswers] = useState<VerifyQuestion[]>([]);
+  const [answers, setAnswers] = useState<Record<number, Answer>>({});
   const [chosenTopic, setChosenTopic] = useState<string|null>(null);
-  const [chosenYear, setChosenYear] = useState<number|null>(null);
 
+  // Load saved answers on mount / when bazi changes
   useEffect(() => {
-    const saved = loadSavedVerifyByYear(fingerprint);
-    const next: Record<number, AnswerLevel> = {};
-    for (const q of verifyQuestions) {
-      const v = saved[q.year];
-      if (v) next[q.year] = v;
-    }
-    setVerifySelections(next);
-  }, [fingerprint, verifyQuestions]);
+    setAnswers(loadSavedAnswers(bazi));
+  }, [bazi]);
 
-  const topics = language === 'en' ? TOPICS_EN : TOPICS_ZH;
+  const setAnswer = useCallback((year: number, answer: Answer) => {
+    setAnswers(prev => {
+      const next = { ...prev, [year]: answer };
+      saveAnswers(bazi, next);
+      return next;
+    });
+  }, [bazi]);
 
-  const setAnswerForYear = useCallback((year: number, answer: AnswerLevel) => {
-    setVerifySelections((prev) => ({ ...prev, [year]: answer }));
-  }, []);
-
-  const handleVerifyContinue = useCallback(() => {
-    const merged: Record<number, AnswerLevel> = { ...verifySelections };
-    const built: VerifyQuestion[] = verifyQuestions.map((q) => ({
-      ...q,
-      answer: merged[q.year] ?? 'neutral',
-    }));
-    setAnswers(built);
-    saveVerifyByYear(fingerprint, Object.fromEntries(built.map((a) => [a.year, a.answer!])));
-    setStep('topic');
-  }, [verifyQuestions, verifySelections, fingerprint]);
-
-  const handleSkipVerify = useCallback(() => setStep('topic'), []);
+  const clearAnswer = useCallback((year: number) => {
+    setAnswers(prev => {
+      const { [year]: _, ...rest } = prev;
+      saveAnswers(bazi, rest);
+      return rest;
+    });
+  }, [bazi]);
 
   const handleTopicPick = useCallback((topic: string) => {
     setChosenTopic(topic);
@@ -204,13 +178,15 @@ export function PredictionChatSection(props: {
   }, []);
 
   const handleYearPick = useCallback((year: number) => {
-    setChosenYear(year);
     setStep('predict');
 
     const yearHit = futureHits.find(h => h.year === year);
     const hitDesc = yearHit ? yearHit.tags.join('、') : '无明显冲合';
-    const verifyText = answers.length > 0
-      ? answers.map(a => `${a.year}年(${a.gz}) ${a.tags.join('/')}：${a.answer === 'good' ? '好' : a.answer === 'bad' ? '不好' : '一般'}`).join('；')
+    const answeredEntries = verifyQuestions
+      .map(q => ({ q, a: answers[q.year] }))
+      .filter(x => x.a);
+    const verifyText = answeredEntries.length > 0
+      ? answeredEntries.map(({ q, a }) => `${q.year}年(${q.gz}) ${q.tags.join('/')}：${a === 'good' ? '好' : a === 'bad' ? '不好' : '一般'}`).join('；')
       : '用户跳过了验证';
 
     const prompt = language === 'zh'
@@ -218,9 +194,11 @@ export function PredictionChatSection(props: {
       : `I want to know about my ${chosenTopic} fortune in ${year} (${yearHit?.gz ?? yearGanZhi(year).gz}).\n\nTransit interactions: ${hitDesc}\nCurrent decade luck: ${yearHit?.daYun ?? findDaYun(year, chart.fortune.decades) ?? 'unknown'}\n\nPast verification: ${verifyText}\n\nPlease analyze this year's fortune based on my chart and give actionable advice.`;
 
     onSendMessage(prompt);
-  }, [answers, chosenTopic, language, futureHits, chart, onSendMessage]);
+  }, [answers, verifyQuestions, chosenTopic, language, futureHits, chart, onSendMessage]);
 
+  const topics = language === 'en' ? TOPICS_EN : TOPICS_ZH;
   const zhLabel = language === 'zh';
+  const answeredCount = verifyQuestions.filter(q => answers[q.year]).length;
 
   return (
     <section className="panel prediction-chat-panel">
@@ -228,57 +206,71 @@ export function PredictionChatSection(props: {
         <h3>{t.predictionTitle ?? '人生预测'}</h3>
       </div>
 
-      {/* Step: Verify — all rows at once; defaults from localStorage */}
+      {/* Step: Verify — show all questions at once */}
       {step === 'verify' && verifyQuestions.length > 0 && (
         <div className="prediction-cli-step">
           <p className="prediction-cli-prompt">
             {zhLabel
-              ? '下面几年流年与原局有较明显互动，请回忆当年整体感受（未选的行将按「一般」带入）：'
-              : 'These years had notable interactions with your chart — how did each year feel overall? (Unselected rows default to “okay”.)'}
+              ? '请回忆一下以下几个关键年份，校准预测准确度：'
+              : 'Please recall these key past years to calibrate prediction accuracy:'}
           </p>
-          <div className="prediction-verify-table">
-            {verifyQuestions.map((q) => {
-              const sel = verifySelections[q.year];
+
+          <div className="prediction-verify-list">
+            {verifyQuestions.map(q => {
+              const current = answers[q.year];
               return (
                 <div key={q.year} className="prediction-verify-row">
-                  <div className="prediction-verify-row-head">
-                    <span className="prediction-verify-year">{q.year}</span>
-                    <span className="prediction-verify-gz">{q.gz}</span>
-                    <span className="prediction-verify-tags">{q.tags.join(' · ')}</span>
+                  <div className="prediction-verify-info">
+                    <div className="prediction-verify-year-line">
+                      <strong>{q.year}</strong>
+                      <span className="muted">{q.gz}</span>
+                    </div>
+                    <div className="prediction-verify-tags">
+                      {q.tags.map(tag => (
+                        <span key={tag} className={`prediction-mini-tag ${tag.includes('冲') || tag.includes('刑') ? 'tag-warn' : 'tag-ok'}`}>
+                          {tag.replace(/\(.*\)/, '')}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <div className="prediction-verify-row-options">
+                  <div className="prediction-verify-options">
                     <button
                       type="button"
-                      className={`prediction-option-btn prediction-option-good ${sel === 'good' ? 'is-selected' : ''}`}
-                      onClick={() => setAnswerForYear(q.year, 'good')}
+                      className={`prediction-option-btn prediction-option-good ${current === 'good' ? 'selected' : ''}`}
+                      onClick={() => current === 'good' ? clearAnswer(q.year) : setAnswer(q.year, 'good')}
                     >
-                      {zhLabel ? '👍 还不错' : '👍 Good'}
+                      👍 {zhLabel ? '好' : 'Good'}
                     </button>
                     <button
                       type="button"
-                      className={`prediction-option-btn prediction-option-neutral ${sel === 'neutral' ? 'is-selected' : ''}`}
-                      onClick={() => setAnswerForYear(q.year, 'neutral')}
+                      className={`prediction-option-btn prediction-option-neutral ${current === 'neutral' ? 'selected' : ''}`}
+                      onClick={() => current === 'neutral' ? clearAnswer(q.year) : setAnswer(q.year, 'neutral')}
                     >
-                      {zhLabel ? '😐 一般' : '😐 Okay'}
+                      😐 {zhLabel ? '一般' : 'Okay'}
                     </button>
                     <button
                       type="button"
-                      className={`prediction-option-btn prediction-option-bad ${sel === 'bad' ? 'is-selected' : ''}`}
-                      onClick={() => setAnswerForYear(q.year, 'bad')}
+                      className={`prediction-option-btn prediction-option-bad ${current === 'bad' ? 'selected' : ''}`}
+                      onClick={() => current === 'bad' ? clearAnswer(q.year) : setAnswer(q.year, 'bad')}
                     >
-                      {zhLabel ? '👎 不太好' : '👎 Not great'}
+                      👎 {zhLabel ? '不好' : 'Bad'}
                     </button>
                   </div>
                 </div>
               );
             })}
           </div>
-          <div className="prediction-cli-meta prediction-verify-actions">
-            <button type="button" className="primary-btn" onClick={handleVerifyContinue}>
-              {zhLabel ? '确认并继续 →' : 'Continue →'}
-            </button>
-            <button type="button" className="ghost-btn prediction-skip-btn" onClick={handleSkipVerify}>
-              {zhLabel ? '跳过验证' : 'Skip'}
+
+          <div className="prediction-cli-meta">
+            <span className="muted">
+              {zhLabel
+                ? `已回答 ${answeredCount} / ${verifyQuestions.length}${answeredCount > 0 ? '（已自动保存）' : ''}`
+                : `Answered ${answeredCount} / ${verifyQuestions.length}${answeredCount > 0 ? ' (auto-saved)' : ''}`}
+            </span>
+            <button type="button" className="primary-btn" onClick={() => setStep('topic')}>
+              {answeredCount === 0
+                ? (zhLabel ? '跳过 →' : 'Skip →')
+                : (zhLabel ? '下一步 →' : 'Next →')}
             </button>
           </div>
         </div>
@@ -355,16 +347,7 @@ export function PredictionChatSection(props: {
               {sending ? (t.diagnosisChatSending ?? '分析中...') : (t.predictionChatSend ?? '发送')}
             </button>
           </div>
-          <button
-            type="button"
-            className="ghost-btn prediction-restart-btn"
-            onClick={() => {
-              setStep('verify');
-              setAnswers([]);
-              setChosenTopic(null);
-              setChosenYear(null);
-            }}
-          >
+          <button type="button" className="ghost-btn prediction-restart-btn" onClick={() => { setStep('verify'); setChosenTopic(null); }}>
             {zhLabel ? '重新开始' : 'Start over'}
           </button>
         </>

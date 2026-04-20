@@ -2283,8 +2283,79 @@ textarea {
 .prediction-cli-step {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   padding: 8px 0;
+}
+
+.prediction-verify-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.prediction-verify-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-0);
+  flex-wrap: wrap;
+}
+
+.prediction-verify-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.prediction-verify-year-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.prediction-verify-year-line strong {
+  font-size: 1rem;
+  color: var(--ink-0);
+}
+
+.prediction-verify-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.prediction-verify-options {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.prediction-verify-options .prediction-option-btn {
+  padding: 6px 12px;
+  font-size: 0.82rem;
+}
+
+.prediction-option-btn.selected {
+  box-shadow: 0 0 0 2px currentColor inset;
+}
+
+.prediction-option-good.selected { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
+.prediction-option-bad.selected { border-color: #dc2626; color: #dc2626; background: #fef2f2; }
+.prediction-option-neutral.selected { border-color: #d97706; color: #d97706; background: #fffbeb; }
+
+@media (max-width: 520px) {
+  .prediction-verify-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .prediction-verify-options {
+    justify-content: space-between;
+  }
 }
 
 .prediction-cli-prompt {
@@ -2327,90 +2398,6 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.prediction-verify-table {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.prediction-verify-row {
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: var(--bg-0);
-}
-
-.prediction-verify-row-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px 12px;
-  margin-bottom: 8px;
-  font-size: 0.85rem;
-  line-height: 1.45;
-}
-
-.prediction-verify-year {
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: var(--ink-0);
-}
-
-.prediction-verify-gz {
-  font-weight: 600;
-  color: var(--ink-1);
-}
-
-.prediction-verify-tags {
-  flex: 1 1 100%;
-  color: var(--ink-2);
-  font-size: 0.82rem;
-}
-
-.prediction-verify-row-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.prediction-verify-row-options .prediction-option-btn {
-  padding: 8px 14px;
-  font-size: 0.82rem;
-}
-
-.prediction-option-btn.is-selected {
-  border-width: 2px;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
-}
-
-.prediction-option-good.is-selected {
-  border-color: #16a34a;
-  color: #15803d;
-  background: #f0fdf4;
-}
-
-.prediction-option-neutral.is-selected {
-  border-color: #d97706;
-  color: #b45309;
-  background: #fffbeb;
-}
-
-.prediction-option-bad.is-selected {
-  border-color: #dc2626;
-  color: #b91c1c;
-  background: #fef2f2;
-}
-
-.prediction-verify-actions {
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: flex-start;
-}
-
-.prediction-verify-actions .primary-btn {
-  margin-right: auto;
 }
 
 .prediction-skip-btn {
