@@ -87,8 +87,8 @@ export const structuredAnalysisSchema = z.object({
     weakPoints: z.array(z.string().min(1).max(120)).max(5),
   }),
   preferences: z.object({
-    favorable: z.array(z.string().min(1).max(30)).max(5),
-    unfavorable: z.array(z.string().min(1).max(30)).max(5),
+    favorable: z.array(z.string().min(1).max(60)).max(5),
+    unfavorable: z.array(z.string().min(1).max(60)).max(5),
     rationale: z.string().min(1).max(240),
   }),
   failureMode: z.object({

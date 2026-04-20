@@ -51,15 +51,20 @@ function pickNumber(value: unknown, fallback: number): number {
   return fallback;
 }
 
-function toStringArray(value: unknown, limit: number): string[] {
+function toStringArray(value: unknown, limit: number, maxLen = 120): string[] {
+  const truncate = (s: string): string => (s.length > maxLen ? s.slice(0, maxLen) : s);
   if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).slice(0, limit);
+    return value
+      .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      .map(truncate)
+      .slice(0, limit);
   }
   if (typeof value === 'string' && value.trim().length > 0) {
     return value
       .split(/[\n;；。]/)
       .map((item) => item.trim())
       .filter(Boolean)
+      .map(truncate)
       .slice(0, limit);
   }
   return [];
@@ -107,15 +112,15 @@ function normalizeStructuredAnalysisPayload(raw: unknown): Record<string, unknow
       followAdjustment: pickString(structureTypeRaw?.['followAdjustment'], '若后续确认从格或化格，应改用顺势判断。'),
     },
     failure: {
-      fiveElementImbalance: toStringArray(failureRaw?.['fiveElementImbalance'], 5),
-      clashes: toStringArray(failureRaw?.['clashes'], 6),
-      structuralBreaks: toStringArray(failureRaw?.['structuralBreaks'], 6),
+      fiveElementImbalance: toStringArray(failureRaw?.['fiveElementImbalance'], 5, 80),
+      clashes: toStringArray(failureRaw?.['clashes'], 6, 120),
+      structuralBreaks: toStringArray(failureRaw?.['structuralBreaks'], 6, 120),
       primaryFailure: pickString(failureRaw?.['primaryFailure'], '当前主要问题在于结构失衡与修复链条不稳。'),
     },
     rescue: {
       rescuable: pickBoolean(rescueRaw?.['rescuable'], false),
       rescueReason: pickString(rescueRaw?.['rescueReason'], '是否可救仍需结合原局与运势共同判断。'),
-      candidateUsefulGods: toStringArray(rescueRaw?.['candidateUsefulGods'], 5),
+      candidateUsefulGods: toStringArray(rescueRaw?.['candidateUsefulGods'], 5, 30),
     },
     capacity: {
       dayMasterStrength: pickEnum(capacityRaw?.['dayMasterStrength'], ['weak', 'balanced', 'strong'] as const, 'balanced'),
@@ -123,8 +128,8 @@ function normalizeStructuredAnalysisPayload(raw: unknown): Record<string, unknow
       note: pickString(capacityRaw?.['note'], '身强身弱不能替代病药判断。'),
     },
     usefulGods: {
-      primary: toStringArray(usefulGodsRaw?.['primary'], 4).length > 0 ? toStringArray(usefulGodsRaw?.['primary'], 4) : ['木'],
-      support: toStringArray(usefulGodsRaw?.['support'], 4),
+      primary: toStringArray(usefulGodsRaw?.['primary'], 4, 30).length > 0 ? toStringArray(usefulGodsRaw?.['primary'], 4, 30) : ['木'],
+      support: toStringArray(usefulGodsRaw?.['support'], 4, 30),
       rationale: pickString(usefulGodsRaw?.['rationale'], '先找能修复主要病点的元素，再看辅助支撑。'),
     },
     usefulGodEffectiveness: {
@@ -141,8 +146,8 @@ function normalizeStructuredAnalysisPayload(raw: unknown): Record<string, unknow
       weakPoints: toStringArray(stabilityRaw?.['weakPoints'], 5),
     },
     preferences: {
-      favorable: toStringArray(preferencesRaw?.['favorable'], 5),
-      unfavorable: toStringArray(preferencesRaw?.['unfavorable'], 5),
+      favorable: toStringArray(preferencesRaw?.['favorable'], 5, 60),
+      unfavorable: toStringArray(preferencesRaw?.['unfavorable'], 5, 60),
       rationale: pickString(preferencesRaw?.['rationale'], '喜忌以系统稳定与病药修复为标准。'),
     },
     failureMode: {
