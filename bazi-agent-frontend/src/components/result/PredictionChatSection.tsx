@@ -150,6 +150,7 @@ export function PredictionChatSection(props: {
   const [step, setStep] = useState<FlowStep>('verify');
   const [answers, setAnswers] = useState<Record<number, Answer>>({});
   const [chosenTopic, setChosenTopic] = useState<string|null>(null);
+  const [selectedYears, setSelectedYears] = useState<Set<number>>(new Set());
 
   // Load saved answers on mount / when bazi changes
   useEffect(() => {
@@ -177,11 +178,21 @@ export function PredictionChatSection(props: {
     setStep('year');
   }, []);
 
-  const handleYearPick = useCallback((year: number) => {
+  const toggleYear = useCallback((year: number) => {
+    setSelectedYears(prev => {
+      const next = new Set(prev);
+      if (next.has(year)) next.delete(year);
+      else next.add(year);
+      return next;
+    });
+  }, []);
+
+  const handleAnalyze = useCallback(() => {
+    if (selectedYears.size === 0) return;
     setStep('predict');
 
-    const yearHit = futureHits.find(h => h.year === year);
-    const hitDesc = yearHit ? yearHit.tags.join('、') : '无明显冲合';
+    const years = [...selectedYears].sort((a, b) => a - b);
+
     const answeredEntries = verifyQuestions
       .map(q => ({ q, a: answers[q.year] }))
       .filter(x => x.a);
@@ -189,12 +200,22 @@ export function PredictionChatSection(props: {
       ? answeredEntries.map(({ q, a }) => `${q.year}年(${q.gz}) ${q.tags.join('/')}：${a === 'good' ? '好' : a === 'bad' ? '不好' : '一般'}`).join('；')
       : '用户跳过了验证';
 
+    const yearBlocks = years.map(year => {
+      const hit = futureHits.find(h => h.year === year);
+      const gz = hit?.gz ?? yearGanZhi(year).gz;
+      const hitDesc = hit ? hit.tags.join('、') : '无明显冲合';
+      const daYun = hit?.daYun ?? findDaYun(year, chart.fortune.decades) ?? '未知';
+      return language === 'zh'
+        ? `- ${year} 年（${gz}）：大运 ${daYun} / 流年关系：${hitDesc}`
+        : `- ${year} (${gz}): decade ${daYun} / interactions: ${hitDesc}`;
+    }).join('\n');
+
     const prompt = language === 'zh'
-      ? `我想了解 ${year} 年（${yearHit?.gz ?? yearGanZhi(year).gz}）的${chosenTopic}运势。\n\n流年与命盘关系：${hitDesc}\n所在大运：${yearHit?.daYun ?? findDaYun(year, chart.fortune.decades) ?? '未知'}\n\n过往验证：${verifyText}\n\n请结合我的命盘和上述信息，分析这一年的具体运势，并给出可执行建议。`
-      : `I want to know about my ${chosenTopic} fortune in ${year} (${yearHit?.gz ?? yearGanZhi(year).gz}).\n\nTransit interactions: ${hitDesc}\nCurrent decade luck: ${yearHit?.daYun ?? findDaYun(year, chart.fortune.decades) ?? 'unknown'}\n\nPast verification: ${verifyText}\n\nPlease analyze this year's fortune based on my chart and give actionable advice.`;
+      ? `我想了解以下年份的${chosenTopic}运势：${years.join('、')}。\n\n各年流年与命盘关系：\n${yearBlocks}\n\n过往验证：${verifyText}\n\n请结合我的命盘逐年分析${years.length > 1 ? '，并指出哪些年份需要特别注意' : ''}，给出可执行建议。`
+      : `I want to know about my ${chosenTopic} fortune for: ${years.join(', ')}.\n\nPer-year transit interactions:\n${yearBlocks}\n\nPast verification: ${verifyText}\n\nPlease analyze each year based on my chart${years.length > 1 ? ', and highlight which years need extra attention' : ''}, with actionable advice.`;
 
     onSendMessage(prompt);
-  }, [answers, verifyQuestions, chosenTopic, language, futureHits, chart, onSendMessage]);
+  }, [selectedYears, answers, verifyQuestions, chosenTopic, language, futureHits, chart, onSendMessage]);
 
   const topics = language === 'en' ? TOPICS_EN : TOPICS_ZH;
   const zhLabel = language === 'zh';
@@ -297,15 +318,25 @@ export function PredictionChatSection(props: {
         </div>
       )}
 
-      {/* Step: Year */}
+      {/* Step: Year (multi-select) */}
       {step === 'year' && (
         <div className="prediction-cli-step">
-          <p className="prediction-cli-prompt">{zhLabel ? `看${chosenTopic}——选一个年份：` : `${chosenTopic} — pick a year:`}</p>
+          <p className="prediction-cli-prompt">
+            {zhLabel
+              ? `看${chosenTopic}——可选多个年份（点击切换）：`
+              : `${chosenTopic} — select one or more years (click to toggle):`}
+          </p>
           <div className="prediction-cli-options prediction-cli-year-grid">
             {futureYears.map(year => {
               const hit = futureHits.find(h => h.year === year);
+              const isSelected = selectedYears.has(year);
               return (
-                <button key={year} type="button" className="prediction-year-option" onClick={() => handleYearPick(year)}>
+                <button
+                  key={year}
+                  type="button"
+                  className={`prediction-year-option ${isSelected ? 'selected' : ''}`}
+                  onClick={() => toggleYear(year)}
+                >
                   <span className="prediction-year-option-year">{year}</span>
                   <span className="prediction-year-option-gz">{yearGanZhi(year).gz}</span>
                   {hit && hit.tags.length > 0 && (
@@ -319,6 +350,19 @@ export function PredictionChatSection(props: {
                 </button>
               );
             })}
+          </div>
+          <div className="prediction-cli-meta">
+            <span className="muted">
+              {zhLabel ? `已选 ${selectedYears.size} 个年份` : `${selectedYears.size} year${selectedYears.size === 1 ? '' : 's'} selected`}
+            </span>
+            <button
+              type="button"
+              className="primary-btn"
+              disabled={selectedYears.size === 0}
+              onClick={handleAnalyze}
+            >
+              {zhLabel ? '开始分析 →' : 'Analyze →'}
+            </button>
           </div>
         </div>
       )}
@@ -347,7 +391,7 @@ export function PredictionChatSection(props: {
               {sending ? (t.diagnosisChatSending ?? '分析中...') : (t.predictionChatSend ?? '发送')}
             </button>
           </div>
-          <button type="button" className="ghost-btn prediction-restart-btn" onClick={() => { setStep('verify'); setChosenTopic(null); }}>
+          <button type="button" className="ghost-btn prediction-restart-btn" onClick={() => { setStep('verify'); setChosenTopic(null); setSelectedYears(new Set()); }}>
             {zhLabel ? '重新开始' : 'Start over'}
           </button>
         </>

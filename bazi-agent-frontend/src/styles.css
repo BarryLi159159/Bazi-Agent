@@ -2430,6 +2430,16 @@ textarea {
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
 }
 
+.prediction-year-option.selected {
+  border-color: #6366f1;
+  background: #eef2ff;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
+.prediction-year-option.selected .prediction-year-option-year {
+  color: #4338ca;
+}
+
 .prediction-year-option-year {
   font-size: 1.1rem;
   font-weight: 700;
