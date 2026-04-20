@@ -64,13 +64,14 @@ function findDaYun(year: number, decades: NormalizedFortuneDecade[]): string|nul
   return null;
 }
 
-// Per-topic weighting — which pillar matters most for each life area
-const TOPIC_PILLAR_WEIGHT: Record<TopicKey, Record<'年柱'|'月柱'|'日柱'|'时柱', number>> = {
-  career:       { 年柱: 0.8, 月柱: 1.2, 日柱: 1.0, 时柱: 0.6 },
-  wealth:       { 年柱: 0.7, 月柱: 1.0, 日柱: 1.2, 时柱: 0.9 },
-  relationship: { 年柱: 0.5, 月柱: 0.8, 日柱: 1.5, 时柱: 0.8 },
-  health:       { 年柱: 0.6, 月柱: 0.7, 日柱: 1.5, 时柱: 0.7 },
-  general:      { 年柱: 0.9, 月柱: 1.0, 日柱: 1.1, 时柱: 0.8 },
+// Topic-agnostic scoring: just the overall chart-vs-transit tension
+// (which topic it most affects is left to the LLM to analyze per click)
+
+const PILLAR_BASE_WEIGHT: Record<'年柱'|'月柱'|'日柱'|'时柱', number> = {
+  年柱: 0.9,
+  月柱: 1.0,
+  日柱: 1.3, // day pillar (self) is most important
+  时柱: 0.8,
 };
 
 const TYPE_BASE_WEIGHT: Record<Interaction['type'], number> = {
@@ -80,15 +81,14 @@ const TYPE_BASE_WEIGHT: Record<Interaction['type'], number> = {
   克: -5,
 };
 
-function scoreYear(chart: NormalizedChartRich, year: number, topic: TopicKey): YearScore {
+function scoreYear(chart: NormalizedChartRich, year: number): YearScore {
   const interactions = computeInteractions(chart, year);
   const decades = chart.fortune.decades;
   const isTransition = decades.some(d => d.startYear === year);
-  const pillarW = TOPIC_PILLAR_WEIGHT[topic];
 
   let score = 50;
   for (const it of interactions) {
-    const w = pillarW[it.pillar] ?? 1.0;
+    const w = PILLAR_BASE_WEIGHT[it.pillar] ?? 1.0;
     score += TYPE_BASE_WEIGHT[it.type] * w;
   }
   if (isTransition) score -= 4;
@@ -179,6 +179,9 @@ export function PredictionChatSection(props: {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [precisionOpen, setPrecisionOpen] = useState(false);
   const [answers, setAnswers] = useState<Record<number, Answer>>({});
+  // Track how many user messages existed at click time, so we only show assistant
+  // messages that arrived AFTER the current click (avoids stale year output).
+  const [requestBaseline, setRequestBaseline] = useState<number>(0);
 
   useEffect(() => {
     setAnswers(loadSavedAnswers(bazi));
@@ -192,9 +195,8 @@ export function PredictionChatSection(props: {
   }, [currentYear]);
 
   const scoredYears = useMemo<YearScore[]>(() => {
-    if (!topic) return [];
-    return years.map(y => scoreYear(chart, y, topic));
-  }, [years, chart, topic]);
+    return years.map(y => scoreYear(chart, y));
+  }, [years, chart]);
 
   // Past key years for verification (algorithm based)
   const pastVerifyYears = useMemo<YearScore[]>(() => {
@@ -204,12 +206,12 @@ export function PredictionChatSection(props: {
     const start = Math.max(birthYear + 16, currentYear - 15);
     const arr: YearScore[] = [];
     for (let y = start; y < currentYear; y++) {
-      const s = scoreYear(chart, y, topic ?? 'general');
+      const s = scoreYear(chart, y);
       // pick only ones with meaningful interactions
       if (s.interactions.length > 0) arr.push(s);
     }
     return arr.slice(-5);
-  }, [chart, topic, currentYear]);
+  }, [chart, currentYear]);
 
   const answeredCount = pastVerifyYears.filter(q => answers[q.year]).length;
 
@@ -232,6 +234,9 @@ export function PredictionChatSection(props: {
   const handleBarClick = useCallback((year: number) => {
     if (!topic) return;
     setSelectedYear(year);
+    // Count current user messages; we'll only show assistant messages that
+    // appear AFTER this count (prevents stale year output from flashing).
+    setRequestBaseline(messages.filter(m => m.role === 'user').length);
 
     const ys = scoredYears.find(s => s.year === year);
     if (!ys) return;
@@ -254,7 +259,7 @@ export function PredictionChatSection(props: {
       : `I want to know about my ${topicLabel} fortune in ${year} (${ys.gz}).\n\nTransit interactions: ${hitsDesc}\nDecade luck: ${daYun}\nAlgorithmic score: ${ys.score}/100${ys.isDaYunTransition ? ' (decade transition year)' : ''}\n${verifyText ? `Past verification: ${verifyText}\n` : ''}\nPlease analyze this year's ${topicLabel} trajectory, highlight key months, opportunities, risks, and give actionable advice.`;
 
     onSendMessage(prompt);
-  }, [topic, scoredYears, pastVerifyYears, answers, zh, topics, onSendMessage]);
+  }, [topic, scoredYears, pastVerifyYears, answers, zh, topics, onSendMessage, messages]);
 
   // ---------- Render ----------
 
@@ -404,8 +409,12 @@ export function PredictionChatSection(props: {
           )}
 
           {(() => {
-            const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
-            if (sending && !lastAssistant) {
+            // Only show assistant messages that arrived AFTER the current click.
+            const userCount = messages.filter(m => m.role === 'user').length;
+            const isFresh = userCount > requestBaseline;
+            const lastAssistant = isFresh ? [...messages].reverse().find(m => m.role === 'assistant') : null;
+
+            if (sending || !lastAssistant) {
               return (
                 <div className="trajectory-ai-loading">
                   <div className="trajectory-ai-spinner" />
@@ -413,7 +422,6 @@ export function PredictionChatSection(props: {
                 </div>
               );
             }
-            if (!lastAssistant) return null;
             return (
               <div className="trajectory-ai-output">
                 {lastAssistant.content.split('\n').filter(line => line.trim().length > 0).map((line, i) => (
