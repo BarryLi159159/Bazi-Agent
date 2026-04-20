@@ -28,12 +28,14 @@ export async function sendChat(params: {
   sessionId?: string;
   message: string;
   accessToken: string;
+  mode?: 'diagnosis' | 'prediction';
 }): Promise<ChatResponse> {
   const birthSolarDatetime = params.userProfile ? toIsoWithOffset(params.userProfile.birthSolarDatetime) : undefined;
 
   const body = {
     sessionId: params.sessionId,
     message: params.message,
+    mode: params.mode,
     userProfile: params.userProfile
       ? {
           displayName: params.userProfile.displayName,

@@ -111,7 +111,7 @@ export interface ChatResponse {
   userId: string;
   sessionId: string;
   assistantMessage: string;
-  structured: StructuredAnalysis;
+  structured?: StructuredAnalysis;
   meta: ChatResponseMeta;
   baziComputed: boolean;
   baziSource?: string;

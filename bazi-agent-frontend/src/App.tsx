@@ -535,6 +535,7 @@ export function App() {
         sessionId: activeSessionId,
         message,
         accessToken: session.access_token,
+        mode: 'prediction',
       });
       setChatDraft('');
       await syncSessionConversation(activeSessionId, session.access_token);

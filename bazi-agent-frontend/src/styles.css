@@ -2479,3 +2479,78 @@ textarea {
   font-size: 0.82rem;
   margin-top: 4px;
 }
+
+.agent-badge {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #818cf8, #6366f1);
+  color: #fff;
+  font-weight: 600;
+  margin-left: 8px;
+}
+
+.agent-tool-trace {
+  margin: 6px 0 4px;
+  font-size: 0.8rem;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 4px 10px;
+  background: var(--bg-1);
+}
+
+.agent-tool-trace summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  font-weight: 600;
+  list-style: none;
+  padding: 2px 0;
+}
+
+.agent-tool-trace summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 4px;
+  transition: transform 0.15s;
+}
+
+.agent-tool-trace[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.agent-tool-trace-list {
+  list-style: none;
+  margin: 6px 0 4px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.agent-tool-trace-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  border-top: 1px solid var(--line);
+}
+
+.agent-tool-trace-item:first-child {
+  border-top: none;
+}
+
+.agent-tool-trace-item code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  color: var(--ink-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-tool-duration {
+  font-size: 0.7rem;
+  color: var(--ink-2);
+  flex-shrink: 0;
+}

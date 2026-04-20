@@ -138,6 +138,7 @@ export interface AgentChatInput {
   userExternalId: string;
   sessionId?: string | undefined;
   message: string;
+  mode?: 'diagnosis' | 'prediction' | undefined;
   userProfile?: {
     displayName?: string | undefined;
     gender?: 0 | 1 | undefined;
@@ -152,7 +153,7 @@ export interface AgentChatResult {
   userId: string;
   sessionId: string;
   assistantMessage: string;
-  structured: StructuredAnalysis;
+  structured?: StructuredAnalysis | undefined;
   meta: ChatResponseMeta;
   baziComputed: boolean;
   baziSource?: string | undefined;

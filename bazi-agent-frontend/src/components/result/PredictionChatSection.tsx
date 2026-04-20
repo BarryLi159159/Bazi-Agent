@@ -371,14 +371,46 @@ export function PredictionChatSection(props: {
       {step === 'predict' && (
         <>
           <div className="result-chat-thread">
-            {messages.filter(m => m.role !== 'system').map((message, index) => (
-              <article key={message.id ?? `${message.role}-${index}`} className={`chat-bubble ${message.role}`}>
-                <div className="chat-bubble-head">
-                  <strong>{roleLabel(message.role, t)}</strong>
-                </div>
-                <p>{message.content}</p>
-              </article>
-            ))}
+            {messages.filter(m => m.role !== 'system').map((message, index) => {
+              const meta = message.meta_json as Record<string, unknown> | undefined;
+              const toolTrace = Array.isArray(meta?.['toolTrace']) ? meta['toolTrace'] as Array<Record<string, unknown>> : [];
+              return (
+                <article key={message.id ?? `${message.role}-${index}`} className={`chat-bubble ${message.role}`}>
+                  <div className="chat-bubble-head">
+                    <strong>{roleLabel(message.role, t)}</strong>
+                    {message.role === 'assistant' && toolTrace.length > 0 && (
+                      <span className="agent-badge" title={zhLabel ? 'Tool-calling agent 模式' : 'Tool-calling agent mode'}>🔧 agent</span>
+                    )}
+                  </div>
+                  {toolTrace.length > 0 && (
+                    <details className="agent-tool-trace">
+                      <summary>
+                        {zhLabel
+                          ? `调用了 ${toolTrace.length} 个工具`
+                          : `${toolTrace.length} tool call${toolTrace.length === 1 ? '' : 's'}`}
+                      </summary>
+                      <ul className="agent-tool-trace-list">
+                        {toolTrace.map((call, i) => {
+                          const name = String(call['name'] ?? 'unknown');
+                          const args = call['args'] as Record<string, unknown> | undefined;
+                          const duration = typeof call['durationMs'] === 'number' ? call['durationMs'] : null;
+                          const argsSummary = args && Object.keys(args).length > 0
+                            ? Object.entries(args).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ')
+                            : '';
+                          return (
+                            <li key={i} className="agent-tool-trace-item">
+                              <code>{name}({argsSummary})</code>
+                              {duration !== null && <span className="agent-tool-duration">{duration}ms</span>}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </details>
+                  )}
+                  <p>{message.content}</p>
+                </article>
+              );
+            })}
           </div>
           <div className="result-chat-composer">
             <textarea

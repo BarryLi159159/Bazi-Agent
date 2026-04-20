@@ -6,6 +6,7 @@ import { getRequiredAuthUser, requireSupabaseAuth } from '../auth/requireSupabas
 const chatBodySchema = z.object({
   sessionId: z.string().uuid().optional(),
   message: z.string().min(1),
+  mode: z.enum(['diagnosis', 'prediction']).optional(),
   userProfile: z
     .object({
       displayName: z.string().optional(),

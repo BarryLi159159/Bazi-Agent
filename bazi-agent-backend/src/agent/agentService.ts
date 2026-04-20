@@ -315,6 +315,15 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     }
   }
 
+  // Branch: prediction mode runs an agent loop with tool-calling instead of structured analysis.
+  if (input.mode === 'prediction') {
+    return await runPredictionChat({
+      user,
+      session,
+      userMessageContent: input.message,
+    });
+  }
+
   let activeUser = user;
   let baziComputed = false;
   let baziSource: string | undefined;
@@ -512,5 +521,77 @@ export async function chatWithAgent(input: AgentChatInput): Promise<AgentChatRes
     },
     baziComputed,
     baziSource,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Prediction mode: agent loop with tool calling
+// ---------------------------------------------------------------------------
+
+async function runPredictionChat(params: {
+  user: { id: string; bazi_json: unknown };
+  session: { id: string };
+  userMessageContent: string;
+}): Promise<AgentChatResult> {
+  const { user, session, userMessageContent } = params;
+
+  const apiKey = (await resolveUserOpenAiKey(user.id))?.trim() || config.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new BadRequestError('未配置 OpenAI API key，无法运行预测 agent');
+  }
+
+  const chartRich =
+    isRecord(user.bazi_json) && isRecord(user.bazi_json['chart_rich'])
+      ? (user.bazi_json['chart_rich'] as Record<string, unknown>)
+      : null;
+
+  if (!chartRich) {
+    throw new BadRequestError('请先排盘再使用预测功能');
+  }
+
+  const priorDb = await listRecentMessagesBySession(session.id, 10);
+  const priorTurns = priorDb
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content !== userMessageContent)
+    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+  // Lazy import to avoid circular refs at module load.
+  const { runPredictionAgent } = await import('./predictionAgent.js');
+
+  const result = await runPredictionAgent({
+    apiKey,
+    userMessage: userMessageContent,
+    priorTurns,
+    ctx: {
+      chartRich,
+      currentYear: new Date().getFullYear(),
+    },
+  });
+
+  await createMessage({
+    sessionId: session.id,
+    userId: user.id,
+    role: 'assistant',
+    content: result.finalText,
+    metaJson: {
+      modelProvider: 'openai-agent-tools',
+      usedFallback: false,
+      agentMode: 'prediction',
+      toolTrace: result.toolTrace,
+      stepsUsed: result.stepsUsed,
+    },
+  });
+
+  await touchSession(session.id);
+
+  return {
+    userId: user.id,
+    sessionId: session.id,
+    assistantMessage: result.finalText,
+    meta: {
+      modelProvider: 'openai-agent-tools',
+      usedFallback: false,
+      baziComputed: false,
+    },
+    baziComputed: false,
   };
 }
