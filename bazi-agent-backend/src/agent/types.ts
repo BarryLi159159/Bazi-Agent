@@ -31,47 +31,47 @@ export const luckEffectTypeSchema = z.enum(['repair', 'amplify_failure', 'collap
 export type LuckEffectType = z.infer<typeof luckEffectTypeSchema>;
 
 export const evidenceSourceSchema = z.object({
-  title: z.string().min(1).max(80),
-  section: z.string().min(1).max(120),
-  reason: z.string().min(1).max(160),
+  title: z.string().min(1),
+  section: z.string().min(1),
+  reason: z.string().min(1),
 });
 export type EvidenceSource = z.infer<typeof evidenceSourceSchema>;
 
 export const structuredAnalysisSchema = z.object({
-  questionSummary: z.string().min(1).max(200),
+  questionSummary: z.string().min(1),
   chartBasis: z.object({
     hasBazi: z.boolean(),
     baziSource: z.string().optional(),
     transitIncluded: z.boolean(),
     transitGeneratedAt: z.string().optional(),
   }),
-  reasoningSummary: z.array(z.string().min(1).max(120)).min(1).max(4),
+  reasoningSummary: z.array(z.string().min(1)).min(1).max(4),
   structureType: z.object({
     pattern: structurePatternSchema,
     isExtreme: z.boolean(),
-    extremeNote: z.string().min(1).max(200),
-    followAdjustment: z.string().min(1).max(200),
+    extremeNote: z.string().min(1),
+    followAdjustment: z.string().min(1),
   }),
   failure: z.object({
-    fiveElementImbalance: z.array(z.string().min(1).max(80)).max(5),
-    clashes: z.array(z.string().min(1).max(120)).max(6),
-    structuralBreaks: z.array(z.string().min(1).max(120)).max(6),
-    primaryFailure: z.string().min(1).max(240),
+    fiveElementImbalance: z.array(z.string().min(1)).max(5),
+    clashes: z.array(z.string().min(1)).max(6),
+    structuralBreaks: z.array(z.string().min(1)).max(6),
+    primaryFailure: z.string().min(1),
   }),
   rescue: z.object({
     rescuable: z.boolean(),
-    rescueReason: z.string().min(1).max(240),
-    candidateUsefulGods: z.array(z.string().min(1).max(30)).max(5),
+    rescueReason: z.string().min(1),
+    candidateUsefulGods: z.array(z.string().min(1)).max(5),
   }),
   capacity: z.object({
     dayMasterStrength: dayMasterStrengthSchema,
-    loadBearing: z.string().min(1).max(200),
-    note: z.string().min(1).max(200),
+    loadBearing: z.string().min(1),
+    note: z.string().min(1),
   }),
   usefulGods: z.object({
-    primary: z.array(z.string().min(1).max(30)).min(1).max(4),
-    support: z.array(z.string().min(1).max(30)).max(4),
-    rationale: z.string().min(1).max(240),
+    primary: z.array(z.string().min(1)).min(1).max(4),
+    support: z.array(z.string().min(1)).max(4),
+    rationale: z.string().min(1),
   }),
   usefulGodEffectiveness: z.object({
     rooted: z.boolean(),
@@ -79,42 +79,42 @@ export const structuredAnalysisSchema = z.object({
     combinedAway: z.boolean(),
     sufficientForce: z.boolean(),
     effective: z.boolean(),
-    reason: z.string().min(1).max(240),
+    reason: z.string().min(1),
   }),
   stability: z.object({
     level: stabilityLevelSchema,
-    positiveLoops: z.array(z.string().min(1).max(120)).max(5),
-    weakPoints: z.array(z.string().min(1).max(120)).max(5),
+    positiveLoops: z.array(z.string().min(1)).max(5),
+    weakPoints: z.array(z.string().min(1)).max(5),
   }),
   preferences: z.object({
-    favorable: z.array(z.string().min(1).max(60)).max(5),
-    unfavorable: z.array(z.string().min(1).max(60)).max(5),
-    rationale: z.string().min(1).max(240),
+    favorable: z.array(z.string().min(1)).max(5),
+    unfavorable: z.array(z.string().min(1)).max(5),
+    rationale: z.string().min(1),
   }),
   failureMode: z.object({
-    collapseTriggers: z.array(z.string().min(1).max(120)).max(5),
-    collapseCondition: z.string().min(1).max(240),
+    collapseTriggers: z.array(z.string().min(1)).max(5),
+    collapseCondition: z.string().min(1),
   }),
   luckFlow: z.object({
     effectType: luckEffectTypeSchema,
-    evidence: z.array(z.string().min(1).max(120)).max(5),
-    summary: z.string().min(1).max(240),
+    evidence: z.array(z.string().min(1)).max(5),
+    summary: z.string().min(1),
   }),
   finalSummary: z.object({
-    coreProblem: z.string().min(1).max(180),
-    solution: z.string().min(1).max(180),
-    trajectoryImpact: z.string().min(1).max(180),
+    coreProblem: z.string().min(1),
+    solution: z.string().min(1),
+    trajectoryImpact: z.string().min(1),
   }),
   evidenceSources: z.array(evidenceSourceSchema).max(3).default([]),
   confidence: z.number().min(0).max(1),
   personalitySnapshot: z.object({
-    headline: z.string().min(1).max(30),
-    description: z.string().min(1).max(200),
+    headline: z.string().min(1),
+    description: z.string().min(1),
   }).optional(),
   annualFortune: z.object({
     year: z.number(),
     score: z.number().min(0).max(100),
-    summary: z.string().min(1).max(100),
+    summary: z.string().min(1),
   }).optional(),
 });
 export type StructuredAnalysis = z.infer<typeof structuredAnalysisSchema>;

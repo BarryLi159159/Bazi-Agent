@@ -76,13 +76,23 @@ function enrichStructuredAnalysis(
     chartBasis.transitGeneratedAt = options.transitGeneratedAt;
   }
 
-  const evidenceSources = options.evidenceSources && options.evidenceSources.length > 0 ? options.evidenceSources : analysis.evidenceSources;
+  const rawEvidenceSources = options.evidenceSources && options.evidenceSources.length > 0 ? options.evidenceSources : analysis.evidenceSources;
+  const evidenceSources = rawEvidenceSources.slice(0, 3).map((item) => ({
+    title: clipString(item.title ?? '', 240),
+    section: clipString(item.section ?? '', 400),
+    reason: clipString(item.reason ?? '', 800),
+  }));
 
   return {
     ...analysis,
     chartBasis,
     evidenceSources,
   };
+}
+
+function clipString(value: string, max: number): string {
+  if (value.length <= max) return value;
+  return value.slice(0, max - 1) + '…';
 }
 
 function buildEvidenceSourcesFromRagSnippets(
@@ -92,8 +102,8 @@ function buildEvidenceSourcesFromRagSnippets(
   const seen = new Set<string>();
 
   for (const snippet of snippets) {
-    const title = mapBookSourceToTitle(snippet.source);
-    const section = normalizeBookSectionLabel(snippet.heading);
+    const title = clipString(mapBookSourceToTitle(snippet.source), 240);
+    const section = clipString(normalizeBookSectionLabel(snippet.heading), 400);
     const dedupeKey = `${title}::${section}`;
     if (seen.has(dedupeKey)) {
       continue;
@@ -101,10 +111,12 @@ function buildEvidenceSourcesFromRagSnippets(
     seen.add(dedupeKey);
 
     const keywords = snippet.matchedKeywords.slice(0, 3);
-    const reason =
+    const reason = clipString(
       keywords.length > 0
         ? `该段与本次判断重点相关，命中关键词：${keywords.join('、')}。`
-        : '该段与本次命盘判断主题接近，可作为参考依据。';
+        : '该段与本次命盘判断主题接近，可作为参考依据。',
+      800,
+    );
 
     sources.push({
       title,

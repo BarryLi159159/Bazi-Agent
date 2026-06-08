@@ -17,8 +17,12 @@ function clipText(value: string, limit = 600): string {
   return value.length > limit ? `${value.slice(0, limit)}...` : value;
 }
 
-function pickString(value: unknown, fallback = ''): string {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
+function pickString(value: unknown, fallback = '', maxLen?: number): string {
+  const raw = typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
+  if (typeof maxLen === 'number' && maxLen > 0 && raw.length > maxLen) {
+    return raw.slice(0, maxLen - 1) + '…';
+  }
+  return raw;
 }
 
 function pickBoolean(value: unknown, fallback = false): boolean {
@@ -93,7 +97,7 @@ function normalizeStructuredAnalysisPayload(raw: unknown): Record<string, unknow
   const finalSummaryRaw = isRecord(obj['finalSummary']) ? obj['finalSummary'] : null;
 
   return {
-    questionSummary: pickString(obj['questionSummary'], '用户希望获得命盘系统分析'),
+    questionSummary: pickString(obj['questionSummary'], '用户希望获得命盘系统分析', 800),
     chartBasis: {
       hasBazi:
         pickBoolean(chartBasisRaw?.['hasBazi'], false) ||
@@ -104,33 +108,33 @@ function normalizeStructuredAnalysisPayload(raw: unknown): Record<string, unknow
         /流转|流年|大运|运势/.test(chartBasisText),
       transitGeneratedAt: pickString(chartBasisRaw?.['transitGeneratedAt']) || undefined,
     },
-    reasoningSummary: toStringArray(obj['reasoningSummary'], 4).length > 0 ? toStringArray(obj['reasoningSummary'], 4) : ['按结构顺序完成命局判断。'],
+    reasoningSummary: toStringArray(obj['reasoningSummary'], 4, 500).length > 0 ? toStringArray(obj['reasoningSummary'], 4, 500) : ['按结构顺序完成命局判断。'],
     structureType: {
       pattern: pickEnum(structureTypeRaw?.['pattern'], ['ordinary', 'follow', 'transform', 'uncertain'] as const, 'uncertain'),
       isExtreme: pickBoolean(structureTypeRaw?.['isExtreme'], false),
-      extremeNote: pickString(structureTypeRaw?.['extremeNote'], structureTypeText || '当前未见足够证据判定极端结构。'),
-      followAdjustment: pickString(structureTypeRaw?.['followAdjustment'], '若后续确认从格或化格，应改用顺势判断。'),
+      extremeNote: pickString(structureTypeRaw?.['extremeNote'], structureTypeText || '当前未见足够证据判定极端结构。', 800),
+      followAdjustment: pickString(structureTypeRaw?.['followAdjustment'], '若后续确认从格或化格，应改用顺势判断。', 800),
     },
     failure: {
-      fiveElementImbalance: toStringArray(failureRaw?.['fiveElementImbalance'], 5, 80),
-      clashes: toStringArray(failureRaw?.['clashes'], 6, 120),
-      structuralBreaks: toStringArray(failureRaw?.['structuralBreaks'], 6, 120),
-      primaryFailure: pickString(failureRaw?.['primaryFailure'], '当前主要问题在于结构失衡与修复链条不稳。'),
+      fiveElementImbalance: toStringArray(failureRaw?.['fiveElementImbalance'], 5, 320),
+      clashes: toStringArray(failureRaw?.['clashes'], 6, 500),
+      structuralBreaks: toStringArray(failureRaw?.['structuralBreaks'], 6, 500),
+      primaryFailure: pickString(failureRaw?.['primaryFailure'], '当前主要问题在于结构失衡与修复链条不稳。', 1000),
     },
     rescue: {
       rescuable: pickBoolean(rescueRaw?.['rescuable'], false),
-      rescueReason: pickString(rescueRaw?.['rescueReason'], '是否可救仍需结合原局与运势共同判断。'),
-      candidateUsefulGods: toStringArray(rescueRaw?.['candidateUsefulGods'], 5, 30),
+      rescueReason: pickString(rescueRaw?.['rescueReason'], '是否可救仍需结合原局与运势共同判断。', 1000),
+      candidateUsefulGods: toStringArray(rescueRaw?.['candidateUsefulGods'], 5, 120),
     },
     capacity: {
       dayMasterStrength: pickEnum(capacityRaw?.['dayMasterStrength'], ['weak', 'balanced', 'strong'] as const, 'balanced'),
-      loadBearing: pickString(capacityRaw?.['loadBearing'], '日主承载能力仅作辅助参考。'),
-      note: pickString(capacityRaw?.['note'], '身强身弱不能替代病药判断。'),
+      loadBearing: pickString(capacityRaw?.['loadBearing'], '日主承载能力仅作辅助参考。', 800),
+      note: pickString(capacityRaw?.['note'], '身强身弱不能替代病药判断。', 800),
     },
     usefulGods: {
-      primary: toStringArray(usefulGodsRaw?.['primary'], 4, 30).length > 0 ? toStringArray(usefulGodsRaw?.['primary'], 4, 30) : ['木'],
-      support: toStringArray(usefulGodsRaw?.['support'], 4, 30),
-      rationale: pickString(usefulGodsRaw?.['rationale'], '先找能修复主要病点的元素，再看辅助支撑。'),
+      primary: toStringArray(usefulGodsRaw?.['primary'], 4, 120).length > 0 ? toStringArray(usefulGodsRaw?.['primary'], 4, 120) : ['木'],
+      support: toStringArray(usefulGodsRaw?.['support'], 4, 120),
+      rationale: pickString(usefulGodsRaw?.['rationale'], '先找能修复主要病点的元素，再看辅助支撑。', 1000),
     },
     usefulGodEffectiveness: {
       rooted: pickBoolean(usefulGodEffectivenessRaw?.['rooted'], false),
@@ -138,39 +142,49 @@ function normalizeStructuredAnalysisPayload(raw: unknown): Record<string, unknow
       combinedAway: pickBoolean(usefulGodEffectivenessRaw?.['combinedAway'], false),
       sufficientForce: pickBoolean(usefulGodEffectivenessRaw?.['sufficientForce'], false),
       effective: pickBoolean(usefulGodEffectivenessRaw?.['effective'], false),
-      reason: pickString(usefulGodEffectivenessRaw?.['reason'], '用神是否有效仍需看根气、受制与运势条件。'),
+      reason: pickString(usefulGodEffectivenessRaw?.['reason'], '用神是否有效仍需看根气、受制与运势条件。', 1000),
     },
     stability: {
       level: pickEnum(stabilityRaw?.['level'], ['stable', 'semi_stable', 'fragile'] as const, 'fragile'),
-      positiveLoops: toStringArray(stabilityRaw?.['positiveLoops'], 5),
-      weakPoints: toStringArray(stabilityRaw?.['weakPoints'], 5),
+      positiveLoops: toStringArray(stabilityRaw?.['positiveLoops'], 5, 500),
+      weakPoints: toStringArray(stabilityRaw?.['weakPoints'], 5, 500),
     },
     preferences: {
-      favorable: toStringArray(preferencesRaw?.['favorable'], 5, 60),
-      unfavorable: toStringArray(preferencesRaw?.['unfavorable'], 5, 60),
-      rationale: pickString(preferencesRaw?.['rationale'], '喜忌以系统稳定与病药修复为标准。'),
+      favorable: toStringArray(preferencesRaw?.['favorable'], 5, 240),
+      unfavorable: toStringArray(preferencesRaw?.['unfavorable'], 5, 240),
+      rationale: pickString(preferencesRaw?.['rationale'], '喜忌以系统稳定与病药修复为标准。', 1000),
     },
     failureMode: {
-      collapseTriggers: toStringArray(failureModeRaw?.['collapseTriggers'], 5),
-      collapseCondition: pickString(failureModeRaw?.['collapseCondition'], '最怕原局病点被运势继续放大且没有修复元素承接。'),
+      collapseTriggers: toStringArray(failureModeRaw?.['collapseTriggers'], 5, 500),
+      collapseCondition: pickString(failureModeRaw?.['collapseCondition'], '最怕原局病点被运势继续放大且没有修复元素承接。', 1000),
     },
     luckFlow: {
       effectType: pickEnum(luckFlowRaw?.['effectType'], ['repair', 'amplify_failure', 'collapse_trigger', 'mixed'] as const, 'mixed'),
-      evidence: toStringArray(luckFlowRaw?.['evidence'], 5),
-      summary: pickString(luckFlowRaw?.['summary'], '运势会影响结构稳定性，需要结合原局动态观察。'),
+      evidence: toStringArray(luckFlowRaw?.['evidence'], 5, 500),
+      summary: pickString(luckFlowRaw?.['summary'], '运势会影响结构稳定性，需要结合原局动态观察。', 1000),
     },
     finalSummary: {
-      coreProblem: pickString(finalSummaryRaw?.['coreProblem'], '当前命盘的核心问题在于结构失衡。'),
-      solution: pickString(finalSummaryRaw?.['solution'], '优先找能修病的主用神，并观察是否真正得力。'),
-      trajectoryImpact: pickString(finalSummaryRaw?.['trajectoryImpact'], '运势会决定问题被修复还是被放大。'),
+      coreProblem: pickString(finalSummaryRaw?.['coreProblem'], '当前命盘的核心问题在于结构失衡。', 800),
+      solution: pickString(finalSummaryRaw?.['solution'], '优先找能修病的主用神，并观察是否真正得力。', 800),
+      trajectoryImpact: pickString(finalSummaryRaw?.['trajectoryImpact'], '运势会决定问题被修复还是被放大。', 800),
     },
-    evidenceSources: Array.isArray(obj['evidenceSources']) ? obj['evidenceSources'] : [],
+    evidenceSources: Array.isArray(obj['evidenceSources'])
+      ? (obj['evidenceSources'] as unknown[]).map((item) => {
+          if (!isRecord(item)) return item;
+          return {
+            ...item,
+            title: pickString(item['title'], '', 240),
+            section: pickString(item['section'], '', 400),
+            reason: pickString(item['reason'], '', 800),
+          };
+        })
+      : [],
     confidence: Math.min(1, Math.max(0, pickNumber(obj['confidence'], 0.6))),
     ...(isRecord(obj['personalitySnapshot'])
       ? {
           personalitySnapshot: {
-            headline: pickString(obj['personalitySnapshot']['headline'], '命格速览'),
-            description: pickString(obj['personalitySnapshot']['description'], '根据命盘综合判断的性格特点。'),
+            headline: pickString(obj['personalitySnapshot']['headline'], '命格速览', 120),
+            description: pickString(obj['personalitySnapshot']['description'], '根据命盘综合判断的性格特点。', 800),
           },
         }
       : {}),
@@ -179,7 +193,7 @@ function normalizeStructuredAnalysisPayload(raw: unknown): Record<string, unknow
           annualFortune: {
             year: pickNumber(obj['annualFortune']['year'], new Date().getFullYear()),
             score: Math.min(100, Math.max(0, pickNumber(obj['annualFortune']['score'], 60))),
-            summary: pickString(obj['annualFortune']['summary'], '今年整体运势需要结合命盘与流转综合判断。'),
+            summary: pickString(obj['annualFortune']['summary'], '今年整体运势需要结合命盘与流转综合判断。', 400),
           },
         }
       : {}),
